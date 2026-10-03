@@ -1,0 +1,3 @@
+<!-- Google Material Symbols outlined commit 6d7ca43bd6e6668531a00fcaca06d921b63dd716; source: https://raw.githubusercontent.com/google/material-design-icons/6d7ca43bd6e6668531a00fcaca06d921b63dd716/symbols/web/chevron_right/materialsymbolsoutlined/chevron_right_24px.svg
+Modified by Oma Prism: explicit white fill/stroke colors for alpha-preserving tint; original geometry retained. SVGs lacking viewBox use their original numeric width/height as the viewport. -->
+<svg fill="#ffffff" xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 -960 960 960" width="24"><path d="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z"/></svg>

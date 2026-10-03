@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "voyagen.prism",
+  "name": "Oma Prism",
+  "version": "1.0.3",
+  "author": "Oma Prism contributors",
+  "license": "MIT",
+  "kinds": ["bar"],
+  "entryPoints": {"bar": "Bar.qml"},
+  "description": "Docked, Floating and Islands layouts with three configurable sections and bundled Lucide and Material Symbols SVG status icons."
+}

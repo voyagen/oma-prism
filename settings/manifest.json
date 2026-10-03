@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "voyagen.prism.settings",
+  "name": "Prism Settings",
+  "version": "1.0.3",
+  "author": "Oma Prism contributors",
+  "license": "MIT",
+  "kinds": ["bar-widget"],
+  "entryPoints": {"barWidget": "BarWidget.qml"},
+  "barWidget": {"displayName": "Prism Settings", "defaultSection": "right", "allowMultiple": false},
+  "description": "A draggable Lucide-style prism button for the active Oma Prism bar's settings."
+}

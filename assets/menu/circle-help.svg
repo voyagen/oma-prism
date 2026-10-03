@@ -1,0 +1,19 @@
+<!-- lucide-static 0.468.0; source: https://unpkg.com/lucide-static@0.468.0/icons/circle-help.svg
+Modified by Oma Prism: explicit white fill/stroke colors for alpha-preserving tint; original geometry retained. SVGs lacking viewBox use their original numeric width/height as the viewport. -->
+<!-- @license lucide-static v0.468.0 - ISC -->
+<svg
+  class="lucide lucide-circle-help"
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="#ffffff"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <circle cx="12" cy="12" r="10" />
+  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+  <path d="M12 17h.01" />
+</svg>
