@@ -151,11 +151,9 @@ Ui.Panel {
   }
 
   function commit(key, value) {
-    var checked = SettingsModel.normalizeSetting(key, value)
-    if (!checked.valid) { localError = checked.error; return false }
     if (!editable) { localError = "Please wait until settings can be saved."; return false }
     localError = ""
-    return bar.commitPrismSetting(key, checked.value)
+    return bar.commitPrismSetting(key, value)
   }
   function commitHost(key, value) {
     if (!editable) return false
@@ -291,7 +289,6 @@ Ui.Panel {
     property bool selected: false
     property bool primary: false
     property bool destructive: false
-    property bool leftAlign: true
     readonly property color actionAccent: destructive ? Color.urgent : Color.accent
     readonly property color foreground: Color.popups.text
     readonly property real iconInset: svg !== "" ? root.iconSize + root.labelGap : 0
@@ -340,7 +337,7 @@ Ui.Panel {
       font.bold: action.selected || action.primary
       color: action.destructive ? Color.urgent : action.foreground
       verticalAlignment: Text.AlignVCenter
-      horizontalAlignment: action.leftAlign ? Text.AlignLeft : Text.AlignHCenter
+      horizontalAlignment: Text.AlignLeft
     }
     Shared.SvgIcon {
       visible: action.svg !== ""
@@ -717,7 +714,6 @@ Ui.Panel {
               required property int index
               required property var modelData
               width: parent.width
-              leftAlign: true
               selected: root.selectedSection === sectionColumn.modelData && root.selectedIndex === index
               text: (index + 1) + ". " + root.widgetName(root.bar ? root.bar.entryId(modelData) : "")
               onClicked: root.selectEntry(sectionColumn.modelData, index)

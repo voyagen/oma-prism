@@ -3,7 +3,6 @@ import QtTest
 import Quickshell
 import Quickshell.Io
 import qs.Ui
-import "SettingsModel.js" as SettingsModel
 Item {
   id: proof
   required property var bar

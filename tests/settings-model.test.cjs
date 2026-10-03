@@ -1,6 +1,6 @@
 const test = require("node:test")
 const assert = require("node:assert/strict")
-const { normalizeSetting, normalizeSettings, diagnostics, defaults, bounds, updateOverrideRow, codepoints } = require("../SettingsModel.js")
+const { normalizeSetting, normalizeSettings, diagnostics, defaults, bounds } = require("../SettingsModel.js")
 
 function accepted(key, input, expected) {
   const result = normalizeSetting(key, input)
@@ -242,32 +242,6 @@ test("diagnostics identify unknown keys and effective repairs without changing s
   assert.equal(issues.find(issue => issue.key === "mode").effective, defaults.mode)
   assert.equal(JSON.stringify(raw), snapshot)
   assert.deepEqual(diagnostics({ opacity: 0.5, thickness: 28 }), [])
-})
-
-test("friendly override updates preserve other rows and reject invalid existing dictionaries atomically", () => {
-  const raw = { audio: { "": "/tmp/old.svg", "󰋋": "~/headphones.svg" }, network: { "x": "/tmp/network.svg" } }
-  const snapshot = JSON.stringify(raw)
-  const updated = updateOverrideRow(raw, "audio", "", "/tmp/new.svg")
-  assert.equal(updated.valid, true)
-  assert.deepEqual(updated.value, { audio: { "": "/tmp/new.svg", "󰋋": "~/headphones.svg" }, network: { "x": "/tmp/network.svg" } })
-  assert.equal(JSON.stringify(raw), snapshot)
-  assert.deepEqual(updateOverrideRow({ muted: "/tmp/m.svg", high: "/tmp/h.svg" }, "", "muted", "").value, { high: "/tmp/h.svg" })
-  assert.deepEqual(updateOverrideRow({ audio: { "": "/tmp/old.svg" } }, "audio", "", "").value, {})
-  assert.equal(updateOverrideRow({ valid: "/tmp/v.svg", broken: false }, "", "valid", "/tmp/new.svg").valid, false)
-  assert.equal(updateOverrideRow({ valid: "/tmp/v.svg", broken: "https://host/b.svg" }, "", "valid", "/tmp/new.svg").valid, false)
-  assert.equal(updateOverrideRow({ audio: false }, "audio", "", "/tmp/new.svg").valid, false)
-  assert.equal(updateOverrideRow([], "", "muted", "/tmp/new.svg").valid, false)
-  assert.deepEqual(updateOverrideRow({ broken: false }, "", "broken", "").value, {})
-})
-
-test("override rows and glyph labels support own prototype-like keys and supplementary Unicode", () => {
-  const raw = JSON.parse('{"__proto__":{"constructor":"/tmp/old.svg"}}')
-  const result = updateOverrideRow(raw, "__proto__", "constructor", "/tmp/new.svg")
-  assert.equal(result.valid, true)
-  assert.equal(Object.getPrototypeOf(result.value), Object.prototype)
-  assert.equal(result.value.__proto__.constructor, "/tmp/new.svg")
-  assert.equal(raw.__proto__.constructor, "/tmp/old.svg")
-  assert.equal(codepoints("󰋋"), "U+F028 U+F02CB")
 })
 
 test("schema edits preserve opaque inline fields and enforce consumer-visible field constraints", () => {

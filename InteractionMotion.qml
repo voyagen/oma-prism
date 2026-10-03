@@ -14,13 +14,11 @@ Item {
   property bool expressiveMotion: false
   property var enabledOverride: null
   property var reducedMotionOverride: null
-  // Optional explicit direct painting children; null selects the native shape.
   property bool backgroundCovered: false
   property real pillHorizontalPadding: Style.space(6)
   readonly property bool highlighted: !!control && (control.effectiveActive !== undefined
     ? control.effectiveActive : control.active === true)
   readonly property alias statePill: pill
-  property var visualItems: null
   property bool attached: true
   readonly property bool effectiveEnabled: !!attached && !!motionEnabled
     && (enabledOverride !== null ? !!enabledOverride
@@ -138,9 +136,7 @@ Item {
     var selected = []
     if (attached && effectiveEnabled) {
       for (var item of control.children) {
-        if (visualItems !== null ? visualItems.indexOf(item) >= 0
-            && item !== motion && item.prismOwned !== true && !(item instanceof MouseArea)
-            : nativeVisual(item))
+        if (nativeVisual(item))
           selected.push(item)
       }
     }
@@ -152,14 +148,7 @@ Item {
         removeRecord(record)
     }
     for (var visual of selected) {
-      var found = false
-      for (var existing of next) {
-        if (existing.visual === visual) {
-          found = true
-          break
-        }
-      }
-      if (!found) {
+      if (!next.some(function(existing) { return existing.visual === visual })) {
         var created = visualRecord.createObject(motion, {visual: visual, nativeOpacity: visual.opacity})
         var transforms = []
         for (var current of visual.transform)
@@ -244,7 +233,6 @@ Item {
       pressCanceled = true
   }
   onEffectiveEnabledChanged: { syncChildren(); updateState() }
-  onVisualItemsChanged: syncChildren()
   onControlChanged: { detach(); if (completed) { attached = true; syncChildren(); updateState() } }
   onAttachedChanged: { syncChildren(); updateState() }
   Connections {

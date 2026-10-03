@@ -143,10 +143,6 @@ Item {
     }
     return observation.widgetId
   }
-  function find(list, item) {
-    for (var i = 0; i < list.length; ++i) if (list[i].target === item) return list[i]
-    return null
-  }
   function publicLabelText(text) {
     if(typeof text!=="string" || text==="")return false
     for(var i=0;i<text.length;i++) {
@@ -158,13 +154,13 @@ Item {
   }
   function scan(item, observation) {
     if (!item || item === adapter || item.prismOwned === true) return
-    var watch = find(watches,item)
+    var watch = watches.find(function(watch) { return watch.target === item })
     if (!watch) {
       watch = watchComponent.createObject(adapter,{target:item,context:contextFor(item,observation)})
       watches.push(watch)
     }
     if (item instanceof BarIconButton) {
-      var record = find(targets,item)
+      var record = targets.find(function(record) { return record.target === item })
       if (!record) {
         record = recordComponent.createObject(adapter, {target:item, context:contextFor(item,observation), slot:observation.slot, custom:item.iconComponent !== null})
         targets.push(record)

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Apply the repository-wide complexity audit: remove obsolete SVG-editor helpers/tests, unused controller delegates and state, and unused motion/alignment options. Reuse existing entry lookup and standard array searches; validate settings once at the persistence boundary. Preserve saved overrides, native input, layout and disk-save acknowledgment.
+  Verification: 61 Node regressions and all four isolated QML/Wayland runtime, motion, layout and settings-design fixtures passed.
 - Apply a coherent bar density scale with Default as the new-configuration reference: 32/40/48 px bars, 24/30/36 px pills, 4/5/6 px cross-axis insets and 8/10/12 px horizontal padding. Reserve pill extents in layout rather than painting into neighboring gaps; keep zero-axis spacers zero and explicit command padding intact.
 - Distinguish tight control spacing from major-section separation, scale nested public control groups, and retain physical center anchoring and native overflow rails. Grow the bar for larger icon/text/native content without losing boundary breathing room.
 - Follow the supplied macOS-inspired guidelines for restrained default press feedback (0.975×), readable density-aware tooltips and consistent floating-surface proportions. Keep opt-in Expressive behavior and native widget actions/menus.

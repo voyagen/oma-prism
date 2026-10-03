@@ -141,12 +141,6 @@ function replaceEntrySettings(layout, section, index, settings) {
 }
 
 
-function moduleString(entry, key, fallback) {
-  var settings = entrySettings(entry)
-  var value = settings[key]
-  return value === undefined || value === null ? fallback : String(value)
-}
-
 function entryIndex(entries, name) {
   if (!Array.isArray(entries)) return -1
   for (var i = 0; i < entries.length; i++) {
@@ -422,7 +416,6 @@ if (typeof module !== "undefined") {
     normalizePosition: normalizePosition,
     entrySettings: entrySettings,
     entryId: entryId,
-    moduleString: moduleString,
     entryIndex: entryIndex,
     inlineSettingsDelta: inlineSettingsDelta,
     expandPath: expandPath,

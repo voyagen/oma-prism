@@ -239,39 +239,6 @@ function diagnostics(raw) {
   return issues
 }
 
-// Clone the complete raw dictionary, then validate atomically: unrelated bad
-// entries must never disappear just because a friendly row was edited.
-function updateOverrideRow(raw, widgetId, key, path) {
-  var nested = widgetId !== ""
-  var name = nested ? "widgetOverrides" : "semanticOverrides"
-  if (typeof key !== "string" || key === "") return invalid("Choose an override state")
-  if (raw === undefined) raw = {}
-  if (!isPlainObject(raw)) return invalid(name + " must be a plain object; repair it in Advanced JSON first")
-  var output = {}
-  for (var existing of Object.keys(raw)) setOwn(output, existing, raw[existing])
-  var checked = normalizeOverridePath(path, name + "[" + JSON.stringify(key) + "]")
-  if (!checked.valid) return checked
-  var target = output
-  if (nested) {
-    if (hasOwn(output, widgetId) && !isPlainObject(output[widgetId]))
-      return invalid(name + "[" + JSON.stringify(widgetId) + "] must be a plain object; repair it in Advanced JSON first")
-    target = {}
-    var previous = hasOwn(output, widgetId) ? output[widgetId] : {}
-    for (var glyph of Object.keys(previous)) setOwn(target, glyph, previous[glyph])
-    setOwn(output, widgetId, target)
-  }
-  if (checked.value === "") delete target[key]
-  else setOwn(target, key, checked.value)
-  if (nested && Object.keys(target).length === 0) delete output[widgetId]
-  return normalizeSetting(name, output)
-}
-
-function codepoints(text) {
-  return Array.from(String(text || "")).map(function(character) {
-    return "U+" + character.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")
-  }).join(" ")
-}
-
 function supportedSchemaFields(schema) {
   return Array.isArray(schema) ? schema.filter(function(field) {
     return isPlainObject(field) && typeof field.key === "string" && field.key !== "" && field.key !== "id" &&
@@ -320,8 +287,6 @@ if (typeof module !== "undefined" && module.exports) {
     normalizeSettings: normalizeSettings,
     normalizeSetting: normalizeSetting,
     diagnostics: diagnostics,
-    updateOverrideRow: updateOverrideRow,
-    codepoints: codepoints,
     supportedSchemaFields: supportedSchemaFields,
     updateEntryField: updateEntryField,
     defaults: defaults,

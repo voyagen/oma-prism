@@ -26,7 +26,6 @@ Item {
   // the bar renders injected values and persists explicit edits through shell.
   // An empty Prism font family follows the OS-level fontconfig monospace binding.
   property var barConfig: ({})
-  readonly property var rawPrismSettings: barConfig.prism || ({})
   property var diskBarConfig: null
   readonly property var persistedPrismSettings: SettingsModel.normalizeSettings(barConfig.prism)
   property var prismPreview: ({})
@@ -165,8 +164,6 @@ Item {
   property var barDragWindow: null
   property var barDragScreen: null
   property url barDragImageUrl: ""
-  property real barDragSceneX: 0
-  property real barDragSceneY: 0
   property real barDragScreenX: 0
   property real barDragScreenY: 0
   property real barDragOffsetX: 0
@@ -234,11 +231,7 @@ Item {
   }
 
   function pluginObjectRecord(target) {
-    for (var i = 0; i < pluginObjectOwners.length; i++) {
-      var record = pluginObjectOwners[i]
-      if (record && record.target === target) return record
-    }
-    return null
+    return pluginObjectOwners.find(function(record) { return record && record.target === target }) || null
   }
 
   function markPluginObject(pluginId, target, role) {
@@ -279,12 +272,7 @@ Item {
   }
 
   function pluginClickTargets(pluginId) {
-    var out = []
-    for (var i = 0; i < root.clickTargets.length; i++) {
-      var target = root.clickTargets[i]
-      if (root.pluginOwnsBarObject(pluginId, target)) out.push(target)
-    }
-    return out
+    return root.clickTargets.filter(function(target) { return root.pluginOwnsBarObject(pluginId, target) })
   }
 
   function syncAllPluginBarApiObjects() {
@@ -366,11 +354,7 @@ Item {
   }
 
   function pluginBarApiUsed(pluginId) {
-    for (var i = 0; i < moduleSlots.length; i++) {
-      var slot = moduleSlots[i]
-      if (slot && slot.pluginApiId === pluginId) return true
-    }
-    return false
+    return moduleSlots.some(function(slot) { return slot && slot.pluginApiId === pluginId })
   }
 
   function releasePluginObjects(pluginId) {
@@ -519,8 +503,6 @@ Item {
     barDragTarget = null
     barDragTargetGeometry = null
     barDragAfter = false
-    barDragSceneX = 0
-    barDragSceneY = 0
     barDragScreenX = 0
     barDragScreenY = 0
     barDragOffsetX = 0
@@ -1008,13 +990,7 @@ Item {
     var slots = panelNavigationSlots(currentSlot.region, slotWindow(currentSlot))
     if (slots.length < 2) return false
 
-    var currentIndex = -1
-    for (var j = 0; j < slots.length; j++) {
-      if (slots[j] === currentSlot) {
-        currentIndex = j
-        break
-      }
-    }
+    var currentIndex = slots.indexOf(currentSlot)
     if (currentIndex < 0) return false
 
     var step = direction < 0 ? -1 : 1
@@ -1102,10 +1078,6 @@ Item {
     return BarModel.entryId(entry)
   }
 
-  function moduleString(entry, key, fallback) {
-    return BarModel.moduleString(entry, key, fallback)
-  }
-
   function entryIndex(entries, name) {
     return BarModel.entryIndex(entries, name)
   }
@@ -1113,14 +1085,6 @@ Item {
 
   function canonicalWidgetId(name) {
     return Util.canonicalWidgetId(name)
-  }
-
-  function expandPath(path) {
-    return BarModel.expandPath(path, home)
-  }
-
-  function customModuleSafeName(name) {
-    return BarModel.customModuleSafeName(name)
   }
 
   function customModuleType(entry) {
@@ -1191,21 +1155,13 @@ Item {
     return config.bar.layout[region]
   }
 
-  function rawEntryIndex(entries, name) {
-    for (var i = 0; i < entries.length; i++) {
-      if (root.entryId(entries[i]) === name) return i
-    }
-
-    return -1
-  }
-
   function moveModuleInConfig(config, fromRegion, fromName, toRegion, beforeName) {
     var fromEntries = rawLayoutSection(config, fromRegion)
     var toEntries = rawLayoutSection(config, toRegion)
-    var fromIndex = rawEntryIndex(fromEntries, fromName)
+    var fromIndex = entryIndex(fromEntries, fromName)
     if (fromIndex < 0) return false
 
-    var toIndex = beforeName ? rawEntryIndex(toEntries, beforeName) : toEntries.length
+    var toIndex = beforeName ? entryIndex(toEntries, beforeName) : toEntries.length
     if (toIndex < 0) toIndex = toEntries.length
 
     if (fromRegion === toRegion && fromIndex === toIndex) return false

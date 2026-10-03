@@ -179,8 +179,6 @@ Item {
       if (dragging) {
         var scenePoint = slot.mapToItem(null, mouse.x, mouse.y)
         var screenPoint = controller.barDragScreenPoint(scenePoint)
-        controller.barDragSceneX = scenePoint.x
-        controller.barDragSceneY = scenePoint.y
         controller.barDragScreenX = screenPoint.x
         controller.barDragScreenY = screenPoint.y
 
