@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "BarModel.js" as BarModel
 
@@ -47,6 +48,16 @@ PanelWindow {
   WlrLayershell.layer: WlrLayer.Top
 
   readonly property alias surface: surface
+  readonly property alias glassBackdrop: glassBackdrop
+  WallpaperBackdrop {
+    id: glassBackdrop
+    active: controller.glassBackground
+    screenSize: barWindow.screen ? Qt.size(barWindow.screen.width, barWindow.screen.height) : Qt.size(0, 0)
+    devicePixelRatio: barWindow.screen ? barWindow.screen.devicePixelRatio : 1
+    // The bar window spans the screen along its axis and hugs its anchored edge.
+    windowOrigin: Qt.point(controller.position === "right" ? screenSize.width - barWindow.width : 0,
+                           controller.position === "bottom" ? screenSize.height - barWindow.height : 0)
+  }
   readonly property Item settingsButton: {
     for(var slot of controller.moduleSlots)
       if(slot.moduleName==="voyagen.prism.settings" && slot.activeItem && "settingsButton" in slot.activeItem && controller.slotWindow(slot)===barWindow)
@@ -83,18 +94,36 @@ PanelWindow {
     CenterGestureArea { controller:barWindow.controller; anchors.fill:parent }
     Rectangle {
       anchors.fill:parent
-      anchors.leftMargin: !controller.vertical && controller.prismSettings.mode === "floating-bar" ? controller.geometrySettings.outerMargin : 0
-      anchors.rightMargin: anchors.leftMargin
-      anchors.topMargin: controller.vertical && controller.prismSettings.mode === "floating-bar" ? controller.geometrySettings.outerMargin : 0
-      anchors.bottomMargin: anchors.topMargin
+      readonly property bool floatingBar: controller.prismSettings.mode === "floating-bar"
+      readonly property real marginStart: floatingBar ? (controller.geometrySettings.outerMarginStart !== undefined ? controller.geometrySettings.outerMarginStart : controller.geometrySettings.outerMargin) : 0
+      readonly property real marginEnd: floatingBar ? (controller.geometrySettings.outerMarginEnd !== undefined ? controller.geometrySettings.outerMarginEnd : controller.geometrySettings.outerMargin) : 0
+      anchors.leftMargin: controller.vertical ? 0 : marginStart
+      anchors.rightMargin: controller.vertical ? 0 : marginEnd
+      anchors.topMargin: controller.vertical ? marginStart : 0
+      anchors.bottomMargin: controller.vertical ? marginEnd : 0
       objectName:"continuous-bar-background"
       visible:controller.prismSettings.mode !== "islands"
-      color:controller.islandColor
+      color:controller.glassBackground ? "transparent" : controller.islandColor
       border.color:controller.islandBorder
       border.width:controller.islandBorderWidth
       radius:controller.prismSettings.mode === "docked" ? 0 : controller.islandRadius
       antialiasing:true
       z:-1
+      Loader {
+        objectName: "glass-surface"
+        anchors.fill: parent
+        active: controller.glassBackground
+        z: -1
+        source: "GlassSurface.qml"
+        onLoaded: {
+          item.tint = Qt.binding(function() { return controller.islandBaseColor })
+          item.tintOpacity = Qt.binding(function() { return controller.islandOpacity })
+          item.radius = Qt.binding(function() { return parent.radius })
+          item.darkAppearance = Qt.binding(function() { return controller.glassDark })
+          item.lensStrength = 1
+          item.backdrop = barWindow.glassBackdrop
+        }
+      }
     }
     Repeater {
       model:["left","center","right"]
@@ -178,8 +207,8 @@ PanelWindow {
       id: tooltipBubble
       implicitWidth: tooltipLabel.implicitWidth + 4 * controller.densityUnit
       implicitHeight: tooltipLabel.implicitHeight + 3 * controller.densityUnit
-      color: Color.tooltip.background
-      borderSpec: Border.surfaceSpec("tooltip", "border", Color.tooltip.border, 1)
+      color: Commons.Color.tooltip.background
+      borderSpec: Border.surfaceSpec("tooltip", "border", Commons.Color.tooltip.border, 1)
       radius: 1.6 * controller.densityUnit
 
       Text {
@@ -187,7 +216,7 @@ PanelWindow {
         textFormat: Text.PlainText
         anchors.centerIn: parent
         text: controller.tooltipText
-        color: Color.tooltip.text
+        color: Commons.Color.tooltip.text
         font.family: controller.fontFamily
         font.pixelSize: Math.max(13, controller.prismSettings.fontSize)
         horizontalAlignment: Text.AlignHCenter
@@ -205,10 +234,25 @@ PanelWindow {
     width:controller.vertical ? parent.width : interval.extent
     height:controller.vertical ? interval.extent : parent.height
     radius: controller.islandRadius
-    color: controller.islandColor
+    color: controller.glassBackground ? "transparent" : controller.islandColor
     border.color: controller.islandBorder
     border.width: controller.islandBorderWidth
     antialiasing: true
+    Loader {
+      objectName: "glass-surface"
+      anchors.fill: parent
+      active: controller.glassBackground
+      z: -1
+      source: "GlassSurface.qml"
+      onLoaded: {
+        item.tint = Qt.binding(function() { return controller.islandBaseColor })
+        item.tintOpacity = Qt.binding(function() { return controller.islandOpacity })
+        item.radius = Qt.binding(function() { return parent.radius })
+        item.darkAppearance = Qt.binding(function() { return controller.glassDark })
+        item.lensStrength = 1
+          item.backdrop = barWindow.glassBackdrop
+      }
+    }
 
     Behavior on color { ColorAnimation { duration:controller.prismDuration } }
   }

@@ -5,6 +5,7 @@ import QtQuick.Dialogs
 import QtQuick.Window
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui as Ui
 import "SettingsModel.js" as SettingsModel
 import "BarModel.js" as BarModel
@@ -18,13 +19,18 @@ Ui.Panel {
   readonly property bool editable: opened && !!bar && bar.canSavePrismSettings && !bar.settingsWritePending
   readonly property var effective: bar ? bar.prismSettings : SettingsModel.normalizeSettings({})
   readonly property var persisted: bar ? bar.persistedPrismSettings : SettingsModel.normalizeSettings({})
+  // layout is the host layout as saved (up to six sections); the widget list
+  // shows Prism's three drawn sections, which fold the host's centerBegin and
+  // centerEnd into Center and tray into Right (BarModel.foldLayout).
   readonly property var layout: bar ? bar.layoutConfig : ({left: [], center: [], right: []})
+  readonly property var folded: BarModel.foldLayout(layout)
   property string localError: ""
   readonly property alias backgroundColorDialog: colorPickerDialog
   readonly property bool verticalBar: !!bar && (bar.position === "left" || bar.position === "right")
   readonly property var sectionOptions: sections.map(function(section) { return {value: section, label: root.sectionName(section)} })
-  readonly property real densityUnit: bar && bar.densityUnit !== undefined ? bar.densityUnit : 5
-  readonly property real densityScale: densityUnit / 5
+  readonly property real referenceDensityUnit: SettingsModel.defaults.thickness / 8
+  readonly property real densityUnit: bar && bar.densityUnit !== undefined ? bar.densityUnit : referenceDensityUnit
+  readonly property real densityScale: densityUnit / referenceDensityUnit
   readonly property real labelGap: 6 * densityScale
   readonly property real controlGap: 8 * densityScale
   readonly property real groupGap: 12 * densityScale
@@ -35,7 +41,7 @@ Ui.Panel {
   readonly property real controlRadius: 6 * densityScale
   readonly property real iconSize: 16 * densityScale
   readonly property string fontFamily: bar && bar.fontFamily ? bar.fontFamily : Style.font.family
-  readonly property real bodySize: Math.max(12, Style.font.body) + densityUnit - 4
+  readonly property real bodySize: Math.max(12, Style.font.body) + 1 + densityUnit - referenceDensityUnit
   readonly property real titleSize: Math.max(20, bodySize * 1.5)
   function sectionName(section) {
     return section === "center" ? "Center" : section === "left" ? (verticalBar ? "Top" : "Left") : (verticalBar ? "Bottom" : "Right")
@@ -140,7 +146,7 @@ Ui.Panel {
   }
   readonly property var anchorOptions: {
     var result = [{value: "", label: "Whole center section"}]
-    var center = layout.center || []
+    var center = folded.center
     for (var i = 0; i < center.length; i++) {
       var id = bar ? bar.entryId(center[i]) : ""
       if (!result.some(function(option) { return option.value === id })) result.push({value: id, label: root.widgetName(id)})
@@ -166,7 +172,8 @@ Ui.Panel {
     return bar.commitSpacingPreset(name)
   }
   function selectEntry(section, index) {
-    var entries = layout[section]
+    // Fresh fold: an inline-settings save patches the layout in place without notifying bindings.
+    var entries = sections.indexOf(section) >= 0 ? BarModel.foldLayout(layout)[section] : null
     if (!entries || index < 0 || index >= entries.length) return false
     selectedIndex = -1
     selectedEntrySnapshot = JSON.stringify(entries[index])
@@ -192,7 +199,7 @@ Ui.Panel {
   }
   function selectionCurrent() {
     if (!hasSelection || JSON.stringify(layout) !== selectedLayoutSnapshot ||
-        !layout[selectedSection] || JSON.stringify(layout[selectedSection][selectedIndex]) !== selectedEntrySnapshot) {
+        sections.indexOf(selectedSection) < 0 || JSON.stringify(BarModel.foldLayout(layout)[selectedSection][selectedIndex]) !== selectedEntrySnapshot) {
       localError = "Your widgets changed. Select the widget again before saving or moving it."
       return false
     }
@@ -211,11 +218,11 @@ Ui.Panel {
   }
   function moveSelected(section, index) {
     if (!editable || !selectionCurrent()) return false
-    return applyLayout(BarModel.moveLayoutEntry(layout, selectedSection, selectedIndex, section, index))
+    return applyLayout(BarModel.moveFoldedEntry(layout, selectedSection, selectedIndex, section, index))
   }
   function removeSelected() {
     if (!editable || !selectionCurrent()) return false
-    return applyLayout(BarModel.removeLayoutEntry(layout, selectedSection, selectedIndex))
+    return applyLayout(BarModel.removeFoldedEntry(layout, selectedSection, selectedIndex))
   }
   function validateEntryDraft() {
     try {
@@ -228,7 +235,7 @@ Ui.Panel {
   function saveEntry() {
     var parsed = validateEntryDraft()
     if (parsed === null || !editable || !selectionCurrent()) return false
-    return applyLayout(BarModel.replaceEntrySettings(layout, selectedSection, selectedIndex, parsed))
+    return applyLayout(BarModel.replaceFoldedEntrySettings(layout, selectedSection, selectedIndex, parsed))
   }
   function addEntry() {
     if (!editable) return false
@@ -238,7 +245,7 @@ Ui.Panel {
     if (widget.metadata && widget.metadata.allowMultiple === false) {
       var canonical = bar.canonicalWidgetId(widget.id)
       for (var s = 0; s < sections.length; s++) {
-        var entries = layout[sections[s]] || []
+        var entries = BarModel.foldLayout(layout)[sections[s]]
         for (var j = 0; j < entries.length; j++) if (bar.canonicalWidgetId(bar.entryId(entries[j])) === canonical) {
           localError = root.widgetName(widget.id) + " can only be added once and is already on the bar."
           return false
@@ -269,7 +276,7 @@ Ui.Panel {
   }
 
   component Caption: Text {
-    color: Color.popups.text
+    color: Commons.Color.popups.text
     font.family: root.fontFamily
     font.pixelSize: root.bodySize
     textFormat: Text.PlainText
@@ -289,8 +296,8 @@ Ui.Panel {
     property bool selected: false
     property bool primary: false
     property bool destructive: false
-    readonly property color actionAccent: destructive ? Color.urgent : Color.accent
-    readonly property color foreground: Color.popups.text
+    readonly property color actionAccent: destructive ? Commons.Color.urgent : Commons.Color.accent
+    readonly property color foreground: Commons.Color.popups.text
     readonly property real iconInset: svg !== "" ? root.iconSize + root.labelGap : 0
     width: Math.min(implicitWidth, parent.width)
     implicitWidth: Math.ceil(Math.max(labelMetrics.advanceWidth, labelMetrics.boundingRect.width)) + root.controlPadding * 2 + iconInset + 1
@@ -335,7 +342,7 @@ Ui.Panel {
       id: actionLabel
       text: action.text
       font.bold: action.selected || action.primary
-      color: action.destructive ? Color.urgent : action.foreground
+      color: action.destructive ? Commons.Color.urgent : action.foreground
       verticalAlignment: Text.AlignVCenter
       horizontalAlignment: Text.AlignLeft
     }
@@ -432,8 +439,8 @@ Ui.Panel {
     contentItem: Caption { id: toggleLabel; text: toggle.label; verticalAlignment: Text.AlignVCenter }
     background: Ui.BorderSurface {
       radius: root.controlRadius
-      color: Style.controlFill(toggle.activeFocus, toggle.hovered, Color.popups.text, Color.accent)
-      borderSpec: Border.controlSpec(toggle.activeFocus ? "focus" : toggle.hovered ? "hover-cursor" : "normal", Color.popups.text, Color.accent)
+      color: Style.controlFill(toggle.activeFocus, toggle.hovered, Commons.Color.popups.text, Commons.Color.accent)
+      borderSpec: Border.controlSpec(toggle.activeFocus ? "focus" : toggle.hovered ? "hover-cursor" : "normal", Commons.Color.popups.text, Commons.Color.accent)
     }
     Ui.ToggleSwitch {
       id: toggleTrack
@@ -443,7 +450,7 @@ Ui.Panel {
       checked: toggle.checked
       interactive: false
       trackHeight: Math.round(root.controlHeight * 0.6)
-      foreground: Color.popups.text
+      foreground: Commons.Color.popups.text
     }
   }
   component Flag: Toggle {
@@ -485,9 +492,9 @@ Ui.Panel {
         width: slider.availableWidth
         height: root.densityUnit * 0.8
         radius: height / 2
-        color: Color.popups.text
+        color: Commons.Color.popups.text
         opacity: 0.35
-        Rectangle { width: slider.visualPosition * parent.width; height: parent.height; radius: parent.radius; color: Color.accent }
+        Rectangle { width: slider.visualPosition * parent.width; height: parent.height; radius: parent.radius; color: Commons.Color.accent }
       }
       handle: Rectangle {
         x: slider.leftPadding + slider.visualPosition * (slider.availableWidth - width)
@@ -495,9 +502,9 @@ Ui.Panel {
         width: root.iconSize
         height: width
         radius: width / 2
-        color: Color.popups.text
+        color: Commons.Color.popups.text
         border.width: Math.max(1, root.densityScale * 2)
-        border.color: slider.activeFocus ? Color.accent : Color.popups.background
+        border.color: slider.activeFocus ? Commons.Color.accent : Commons.Color.popups.background
       }
     }
   }
@@ -627,6 +634,8 @@ Ui.Panel {
       Caption { width:parent.width; visible:SettingsModel.spacingPreset(root.effective)===""; text:"Existing custom spacing is preserved. Pick a preset to replace it." }
       Choice { label: "Screen"; settingKey: "display"; options: root.displayOptions }
       Flag { label: "Prevent windows from covering the bar"; settingKey: "reserveSpace" }
+      Flag { label: "Match Hyprland gaps"; settingKey: "matchHyprlandGaps"; objectName: "match-hyprland-gaps" }
+      Caption { width: parent.width; text: root.effective.matchHyprlandGaps ? "Floating and Islands use Hyprland's outer gaps for the screen-edge gap and side margins, so the bar lines up with windows. Docked stays flush. Spacing presets keep their other values." : "Edge gap and side margins come from the Spacing preset." }
       }
       Group {
       Numeric { title:"Roundness"; settingKey:"radius" }
@@ -638,7 +647,7 @@ Ui.Panel {
       Caption { width: parent.width; text: "Docked sits against the screen edge. Floating is one continuous bar with margins. Islands separates the sections." }
       }
       Group {
-      Choice { label: "Background"; settingKey: "background"; options: [{value:"theme",label:"Follow theme"},{value:"custom",label:"Custom color"}] }
+      Choice { label: "Background"; settingKey: "background"; options: [{value:"theme",label:"Follow theme"},{value:"custom",label:"Custom color"},{value:"glass",label:"Liquid Glass"}] }
       Actions {
         visible: root.effective.background === "custom"
         Action { objectName: "background-color-picker"; text: "Choose background color"; enabled: root.editable; onClicked: root.openBackgroundColorPicker() }
@@ -652,11 +661,12 @@ Ui.Panel {
             radius: root.controlRadius / 2
             color: root.persisted.color
             border.width: 1
-            border.color: Color.popups.text
+            border.color: Commons.Color.popups.text
           }
           Caption { anchors.verticalCenter: parent.verticalCenter; text: root.persisted.color; Accessible.name: "Background color " + text }
         }
       }
+      Caption { width: parent.width; visible: root.effective.background === "glass"; text: "Liquid Glass blurs and refracts the wallpaper behind the bar, tinted with the theme color; lower the visibility to see more of it. Video wallpapers fall back to a plain tinted pane. Windows overlapping the bar are not refracted (see the README)." }
       Numeric { title: "Background visibility"; settingKey: "opacity"; visible: !(root.bar && root.bar.transparent) }
       Numeric { title: "Background visibility"; settingKey: "transparentOpacity"; visible: !!root.bar && root.bar.transparent }
       Caption { width: parent.width; text: "Lower values make the background more see-through." }
@@ -707,9 +717,9 @@ Ui.Panel {
           width: parent.width
           spacing: root.controlGap
           Caption { width: parent.width; text: root.sectionName(sectionColumn.modelData); font.bold: true }
-          Caption { width: parent.width; visible: (root.layout[sectionColumn.modelData] || []).length === 0; text: "Empty section" }
+          Caption { width: parent.width; visible: root.folded[sectionColumn.modelData].length === 0; text: "Empty section" }
           Repeater {
-            model: root.layout[sectionColumn.modelData] || []
+            model: root.folded[sectionColumn.modelData]
             Action {
               required property int index
               required property var modelData
@@ -732,14 +742,14 @@ Ui.Panel {
         Caption { width: parent.width; text: "Selected: " + root.sectionName(root.selectedSection) + " · " + (root.selectedIndex + 1) + " · " + (root.selectedEntrySnapshot ? root.widgetName(root.bar.entryId(JSON.parse(root.selectedEntrySnapshot))) : "") }
         Actions {
           Action { text: "Earlier"; svg:"arrow-up"; enabled: root.editable && root.selectedIndex > 0; onClicked: root.moveSelected(root.selectedSection, root.selectedIndex - 1) }
-          Action { text: "Later"; svg:"arrow-down"; enabled: root.editable && root.hasSelection && root.selectedIndex < (root.layout[root.selectedSection] || []).length - 1; onClicked: root.moveSelected(root.selectedSection, root.selectedIndex + 1) }
+          Action { text: "Later"; svg:"arrow-down"; enabled: root.editable && root.hasSelection && root.selectedIndex < (root.folded[root.selectedSection] || []).length - 1; onClicked: root.moveSelected(root.selectedSection, root.selectedIndex + 1) }
           Action { text: "Remove"; svg:"trash-2"; destructive: true; enabled: root.editable; onClicked: root.removeSelected() }
           Action { text: "Select again"; svg:"rotate-ccw"; onClicked: root.selectEntry(root.selectedSection, root.selectedIndex) }
         }
         Dropdown { label: "Move to"; options: root.sectionOptions; value: root.destinationSection; enabled: root.editable; onChanged: function(value) { root.destinationSection = value } }
         Actions {
           Action { text: "Move to beginning"; enabled: root.editable; onClicked: root.moveSelected(root.destinationSection, 0) }
-          Action { text: "Move to end"; enabled: root.editable; onClicked: root.moveSelected(root.destinationSection, (root.layout[root.destinationSection] || []).length - (root.destinationSection === root.selectedSection ? 1 : 0)) }
+          Action { text: "Move to end"; enabled: root.editable; onClicked: root.moveSelected(root.destinationSection, root.folded[root.destinationSection].length - (root.destinationSection === root.selectedSection ? 1 : 0)) }
         }
         Action {
           text: "Configure widget"
@@ -782,11 +792,11 @@ Ui.Panel {
                 implicitHeight: root.controlHeight
                 leftPadding: root.controlPadding; rightPadding: root.controlPadding
                 topPadding: root.labelGap; bottomPadding: root.labelGap
-                font.family: root.fontFamily; font.pixelSize: root.bodySize; color: Color.popups.text
-                selectionColor: Color.accent
-                selectedTextColor: Color.popups.background
+                font.family: root.fontFamily; font.pixelSize: root.bodySize; color: Commons.Color.popups.text
+                selectionColor: Commons.Color.accent
+                selectedTextColor: Commons.Color.popups.background
                 opacity: enabled ? 1 : 0.55
-                background: Ui.BorderSurface { color: Color.popups.background; radius: root.controlRadius; borderSpec: Border.controlSpec(schemaInput.activeFocus ? "focus" : "normal", Color.popups.text, Color.accent) }
+                background: Ui.BorderSurface { color: Commons.Color.popups.background; radius: root.controlRadius; borderSpec: Border.controlSpec(schemaInput.activeFocus ? "focus" : "normal", Commons.Color.popups.text, Commons.Color.accent) }
                 onTextEdited: root.editSchemaField(schemaRow.field, text)
               }
               Caption { width: parent.width; visible: text !== ""; text: root.schemaErrors[schemaRow.field.key] || "" }

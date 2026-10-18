@@ -4,8 +4,10 @@ import QtQuick.Controls as Controls
 import Quickshell
 import Quickshell.Io
 import qs.Ui
+import qs.Commons as Commons
 import "../" as Prism
 import "../SettingsModel.js" as SettingsModel
+import "../BarModel.js" as BarModel
 
 Item {
   id: suite
@@ -52,7 +54,7 @@ Item {
   QtObject {
     id: host
     property bool persist: true
-    property var config: ({version:1,bar:{id:"voyagen.prism",position:"top",layout:{left:[],center:[],right:[]},prism:{reserveSpace:false,radius:12}}})
+    property var config: ({version:1,bar:{id:"voyagen.prism",position:"top",layout:{left:[],center:[],right:[]},prism:{matchHyprlandGaps:false,reserveSpace:false,radius:12}}})
     function mutateShellConfig(mutator) {
       var next = JSON.parse(JSON.stringify(config))
       mutator(next)
@@ -123,6 +125,52 @@ Item {
     phases = [
       function() {
         if (!bar.diskBarConfig) return false
+        Commons.Color.loadColors('foreground = "#f8ebe3"\nbackground = "#131516"\naccent = "#819890"')
+        Commons.Color.loadShell("")
+        Commons.Color.loadUserShell("")
+        bar.previewPrismSetting("background","custom")
+        bar.previewPrismSetting("color","#000000")
+        bar.previewPrismSetting("opacity",1)
+        bar.previewPrismSetting("motionEnabled",false)
+        return true
+      },
+      function() {
+        check(bar.effectiveBarBackground.toString()==="#000000" && BarModel.contrastRatio(bar.effectiveBarBackground,button.foreground)>=4.5,
+          "native widget text remains readable on opaque black")
+        bar.previewPrismSetting("background","theme")
+        return true
+      },
+      function() {
+        check(bar.islandColor.toString()==="#131516" && BarModel.contrastRatio(bar.islandColor,button.foreground)>=4.5,
+          "theme background and native text resolve the shell palette")
+        bar.previewPrismSetting("background","glass")
+        return true
+      },
+      function() {
+        if(!bar.barPanels.length) return false
+        check(bar.glassBackground && bar.islandBorderWidth===0 && bar.islandBaseColor.toString()==="#131516" && BarModel.contrastRatio(bar.effectiveBarBackground,button.foreground)>=4.5,
+          "glass background keeps native text contrast >= 4.5")
+        var surface=bar.barPanels[0].surface
+        var continuous=find(surface,function(item){return item.objectName==="continuous-bar-background"})
+        var glass=find(continuous,function(item){return item.objectName==="glass-surface"})
+        if(!glass || !glass.item) return false
+        check(glass.item.tint.toString()==="#131516" && glass.item.tintOpacity===bar.islandOpacity && continuous.color.a===0,
+          "continuous background renders GlassSurface with the theme tint")
+        var island=find(surface,function(item){return item.objectName==="island-background-left"})
+        var islandGlass=find(island,function(item){return item.objectName==="glass-surface"})
+        check(!!islandGlass && !!islandGlass.item && islandGlass.item.radius===bar.islandRadius,"island background renders GlassSurface with island radius")
+        bar.previewPrismSetting("background","theme")
+        return true
+      },
+      function() {
+        var panel=bar.barPanels[0]
+        var theme=find(panel.surface,function(item){return item.objectName==="continuous-bar-background"})
+        check(!find(theme,function(item){return item.objectName==="glass-surface"}).active && theme.color.a>0,"theme background restores the plain Rectangle path")
+        bar.cancelPrismPreview()
+        return true
+      },
+      function() {
+        if (!bar.diskBarConfig) return false
         bar.iconAdapter.observe(button,"omarchy.audio",null)
         bar.iconAdapter.observe(duplicateButton,"omarchy.audio",null)
         return true
@@ -157,7 +205,7 @@ Item {
       function() { bar.cancelPrismPreview(); bar.iconAdapter.observe(button,"omarchy.audio",null); override(assetPath); return true },
       function() {
         if (!ready()) return false
-        check(record().paintedExtent>16,"custom SVG square initially rendered")
+        check(record().paintedExtent>bar.effectiveIconSize-2,"custom SVG square initially rendered")
         assetFile.setText("<svg xmlns='http://www.w3.org/2000/svg' width='9' height='18'><rect width='9' height='18' fill='red'/></svg>")
         return true
       },
@@ -219,6 +267,8 @@ Item {
         bar.openPrismSettings(button)
         check(bar.settingsPanel.opened,"simple settings panel opens")
         check(bar.targetWindow(bar.settingsPanel.acceptanceFocusItem).screen.name===window.screen.name,"anchored popup renders on invoking window's monitor")
+        check(BarModel.contrastRatio(Commons.Color.popups.background,action("tab-appearance").contentItem.color)>=4.5,
+          "settings tab text remains readable on the popup background")
         click(action("tab-icons")); check(bar.settingsPanel.selectedTab===1,"icons tab is reachable")
         click(action("tab-widgets")); check(bar.settingsPanel.selectedTab===2,"widgets tab is reachable")
         click(action("tab-appearance")); check(bar.settingsPanel.selectedTab===0,"appearance tab is reachable")
@@ -453,7 +503,7 @@ Item {
         return true
       });
       ["top","bottom","left","right"].forEach(function(edge) {
-        phases.push(function() { check(bar.commitPrismPatch({mode:mode,reserveSpace:false,reducedMotion:true}),mode+" geometry mode accepted"); return true })
+        phases.push(function() { check(bar.commitPrismPatch({mode:mode,matchHyprlandGaps:false,reserveSpace:false,reducedMotion:true}),mode+" geometry mode accepted"); return true })
         phases.push(function() { if(bar.settingsWritePending)return false; check(bar.commitHostSetting("position",edge),edge+" placement accepted"); return true })
         phases.push(function() {
           if(bar.settingsWritePending)return false

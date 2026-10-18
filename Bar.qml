@@ -7,6 +7,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "BarModel.js" as BarModel
 import "SettingsModel.js" as SettingsModel
@@ -31,11 +32,19 @@ Item {
   property var prismPreview: ({})
   readonly property var prismSettings: SettingsModel.normalizeSettings(Object.assign({},persistedPrismSettings,prismPreview))
   property var geometrySettings: ({})
+  HyprlandGaps { id: hyprlandGaps; active: root.prismSettings.matchHyprlandGaps && root.prismSettings.mode !== "docked" }
+  // Hyprland's gaps_out mapped to this bar's edge gap and axis margins; null falls back to the saved values.
+  readonly property var hyprlandBarGaps: hyprlandGaps.active ? BarModel.hyprlandBarGaps(hyprlandGaps.gaps, position) : null
+  onHyprlandBarGapsChanged: updateGeometrySettings()
   function updateGeometrySettings() {
     var next = {}
     for (var key of ["mode","outerMargin","sectionPadding","widgetSpacing"])
       next[key] = prismSettings[key]
-    next.groupSpacing = Math.max(prismSettings.widgetSpacing, 3 * prismSettings.thickness / 8)
+    if (hyprlandBarGaps) {
+      next.outerMarginStart = hyprlandBarGaps.outerMarginStart
+      next.outerMarginEnd = hyprlandBarGaps.outerMarginEnd
+    }
+    next.groupSpacing = Math.max(prismSettings.widgetSpacing, 3 * prismSettings.thickness / 4)
     if (!equalSettingsValue(next, geometrySettings)) geometrySettings = next
   }
   property string settingsError:""
@@ -85,7 +94,9 @@ Item {
     onTriggered: savedConfigFile.reload()
   }
   readonly property alias iconAdapter: icons
-  IconAdapter { id: icons; settings: root.prismSettings }
+  // Icons render through the density-scaled size; persisted settings keep the Default-density value.
+  readonly property var iconSettings: Object.assign({},prismSettings,{iconSize:effectiveIconSize})
+  IconAdapter { id: icons; settings: root.iconSettings }
   // Injected by the host shell. Used for shell-wide actions such as opening
   // settings and persisting inline widget state.
   property var shell: null
@@ -111,7 +122,10 @@ Item {
     centerAnchor: "omarchy.clock",
     layout: { left: [], center: [], right: [] }
   })
+  // layoutConfig is the host layout exactly as saved (up to six sections);
+  // foldedLayout is what Prism draws: three sections, see BarModel.foldLayout.
   property var layoutConfig: fallbackBarConfig.layout
+  property var foldedLayout: BarModel.foldLayout(layoutConfig)
   property string centerAnchor: ""
   property bool requestedTransparent: false
   property bool useTransparentForeground: false
@@ -136,17 +150,17 @@ Item {
   // [bar] section. Property names kept for the rest of this file's bindings.
   // Keep text readable against the island color, whatever the theme's bar text is.
   readonly property color effectiveBarBackground:Qt.rgba(
-    islandBaseColor.r*islandOpacity+Color.background.r*(1-islandOpacity),
-    islandBaseColor.g*islandOpacity+Color.background.g*(1-islandOpacity),
-    islandBaseColor.b*islandOpacity+Color.background.b*(1-islandOpacity),1)
-  property color themeForeground: BarModel.readableForeground(effectiveBarBackground, Color.bar.text)
-  property color themeContrastForeground: Color.background
-  property color transparentForeground: Color.bar.text
+    islandBaseColor.r*islandOpacity+Commons.Color.background.r*(1-islandOpacity),
+    islandBaseColor.g*islandOpacity+Commons.Color.background.g*(1-islandOpacity),
+    islandBaseColor.b*islandOpacity+Commons.Color.background.b*(1-islandOpacity),1)
+  property color themeForeground: BarModel.readableForeground(effectiveBarBackground, Commons.Color.bar.text)
+  property color themeContrastForeground: Commons.Color.background
+  property color transparentForeground: Commons.Color.bar.text
   property color foreground: themeForeground
   property color barForeground: islandOpacity===0 && useTransparentForeground ? transparentForeground : themeForeground
   property bool foregroundAnimationEnabled: true
-  property color background: Color.bar.background
-  property color urgent: Color.bar.active
+  property color background: Commons.Color.bar.background
+  property color urgent: Commons.Color.bar.active
 
   Behavior on barForeground { enabled: root.foregroundAnimationEnabled; ColorAnimation { duration: root.prismDuration; easing.type: Easing.InOutCubic } }
   Behavior on background { ColorAnimation { duration: root.prismDuration; easing.type: Easing.InOutCubic } }
@@ -196,7 +210,7 @@ Item {
     id: pluginBarApiComponent
     PluginBarApi {
       readonly property bool prismSettingsOpened: prismPanel.opened
-      readonly property real prismIconSize: root.prismSettings.iconSize
+      readonly property real prismIconSize: root.effectiveIconSize
       function openPrismSettings(anchorItem) { return root.openPrismSettings(anchorItem) }
     }
   }
@@ -623,8 +637,11 @@ Item {
   readonly property real densityUnit: prismSettings.thickness / 8
   readonly property real barCrossPadding: Math.max(densityUnit, prismSettings.outlineWidth + 2)
   readonly property real pillHorizontalPadding: 2 * densityUnit
+  // Icon size is configured at Default thickness and follows the spacing preset.
+  readonly property int effectiveIconSize: Math.max(SettingsModel.bounds.iconSize.min, Math.min(SettingsModel.bounds.iconSize.max,
+    Math.round(prismSettings.iconSize * prismSettings.thickness / SettingsModel.defaults.thickness)))
   readonly property int barSize: Math.ceil(Math.max(18, prismSettings.thickness - 2 * barCrossPadding,
-    prismSettings.iconSize + densityUnit, prismSettings.fontSize + 2 * densityUnit))
+    effectiveIconSize + densityUnit, prismSettings.fontSize + 2 * densityUnit))
   readonly property real nativeCrossExtent: {
     var extent = barSize
     for (var i=0;i<moduleSlots.length;i++) {
@@ -634,12 +651,14 @@ Item {
     }
     return extent
   }
-  readonly property color islandBaseColor: prismSettings.background === "theme" ? Color.bar.background : prismSettings.color
+  readonly property bool glassBackground: prismSettings.background === "glass"
+  readonly property color islandBaseColor: prismSettings.background === "theme" || glassBackground ? Commons.Color.bar.background : prismSettings.color
+  readonly property bool glassDark: BarModel.relativeLuminance(islandBaseColor) <= 0.179
   readonly property real islandOpacity: barConfig.transparent === true ? prismSettings.transparentOpacity : prismSettings.opacity
   readonly property color islandColor: Qt.rgba(islandBaseColor.r,islandBaseColor.g,islandBaseColor.b,islandOpacity)
   readonly property color islandBorder: Qt.rgba(themeForeground.r,themeForeground.g,themeForeground.b,prismSettings.outlineOpacity)
-  readonly property real islandBorderWidth: prismSettings.outlineWidth
-  readonly property int islandEdgeGap: prismSettings.mode === "docked" ? 0 : prismSettings.edgeGap
+  readonly property real islandBorderWidth: glassBackground ? 0 : prismSettings.outlineWidth
+  readonly property int islandEdgeGap: prismSettings.mode === "docked" ? 0 : hyprlandBarGaps ? hyprlandBarGaps.edgeGap : prismSettings.edgeGap
   readonly property real islandThickness: Math.max(barSize,nativeCrossExtent) + 2 * barCrossPadding
   readonly property real islandRadius: Math.min(prismSettings.radius,islandThickness/2)
   readonly property real barWindowSize: islandEdgeGap+islandThickness
@@ -718,7 +737,11 @@ Item {
           else config.bar.prism[key]=snapshot
         } else if(kind==="layout") {
           if(!SettingsModel.isPlainObject(config.bar.layout))config.bar.layout={}
-          for(var section of ["left","center","right"])config.bar.layout[section]=snapshot[section]
+          for(var section of BarModel.HOST_SECTIONS) {
+            var optional=section==="centerBegin" || section==="centerEnd" || section==="tray"
+            var entries=Array.isArray(snapshot[section]) ? snapshot[section] : []
+            if(!optional || entries.length>0 || Array.isArray(config.bar.layout[section]))config.bar.layout[section]=entries
+          }
         } else config.bar[key]=snapshot
       })
       savedConfigFile.reload()
@@ -783,7 +806,8 @@ Item {
   }
   function commitLayout(layout) {
     if(!SettingsModel.isPlainObject(layout)){settingsError="Layout must be a plain object.";return false}
-    for(var section of ["left","center","right"]) {
+    for(var section of BarModel.HOST_SECTIONS) {
+      if(layout[section]===undefined && (section==="centerBegin" || section==="centerEnd" || section==="tray"))continue
       if(!Array.isArray(layout[section])){settingsError="Layout "+section+" must be an array.";return false}
       for(var entry of layout[section]) {
         if(!(typeof entry==="string" && entry.trim()!=="" ||
@@ -896,6 +920,7 @@ Item {
       return
     }
     layoutConfig = next
+    foldedLayout = BarModel.foldLayout(next)
     barConfigSerial++
   }
 
@@ -903,10 +928,12 @@ Item {
     for (var i = 0; i < delta.length; i++) {
       var change = delta[i]
       layoutConfig[change.region][change.index] = change.entry
+      var position = BarModel.foldedPosition(foldedLayout, change.region, change.index)
+      if (position) foldedLayout[position.view][position.index] = change.entry
       var settings = entrySettings(change.entry)
       for (var s = 0; s < moduleSlots.length; s++) {
         var slot = moduleSlots[s]
-        if (!slot || slot.region !== change.region || slot.moduleName !== entryId(change.entry)) continue
+        if (!slot || !position || slot.region !== position.view || slot.moduleName !== entryId(change.entry)) continue
         var item = slot.activeItem
         if (item && "settings" in item) item.settings = settings
       }
@@ -917,7 +944,7 @@ Item {
 
   function layoutEntries(region) {
     var serial = barConfigSerial
-    var entries = layoutConfig ? layoutConfig[region] : null
+    var entries = foldedLayout ? foldedLayout[region] : null
     return Array.isArray(entries) ? entries : []
   }
 
@@ -1147,38 +1174,12 @@ Item {
     }
   }
 
-  function rawLayoutSection(config, region) {
+  // Regions here are Prism's three drawn sections; the entry is moved inside
+  // its real host section(s) in shell.json, never folded onto disk.
+  function moveModuleInConfig(config, fromRegion, fromName, toRegion, beforeName) {
     if (!Util.isPlainObject(config.bar)) config.bar = {}
     if (!Util.isPlainObject(config.bar.layout)) config.bar.layout = {}
-    if (!Array.isArray(config.bar.layout[region])) config.bar.layout[region] = []
-
-    return config.bar.layout[region]
-  }
-
-  function moveModuleInConfig(config, fromRegion, fromName, toRegion, beforeName) {
-    var fromEntries = rawLayoutSection(config, fromRegion)
-    var toEntries = rawLayoutSection(config, toRegion)
-    var fromIndex = entryIndex(fromEntries, fromName)
-    if (fromIndex < 0) return false
-
-    var toIndex = beforeName ? entryIndex(toEntries, beforeName) : toEntries.length
-    if (toIndex < 0) toIndex = toEntries.length
-
-    if (fromRegion === toRegion && fromIndex === toIndex) return false
-
-    var movedEntry = fromEntries[fromIndex]
-    fromEntries.splice(fromIndex, 1)
-
-    if (fromRegion === toRegion && fromIndex < toIndex) toIndex -= 1
-    if (toIndex < 0) toIndex = 0
-    if (toIndex > toEntries.length) toIndex = toEntries.length
-    if (fromRegion === toRegion && fromIndex === toIndex) {
-      fromEntries.splice(fromIndex, 0, movedEntry)
-      return false
-    }
-
-    toEntries.splice(toIndex, 0, movedEntry)
-    return true
+    return BarModel.moveFoldedModule(config.bar.layout, fromRegion, fromName, toRegion, beforeName)
   }
 
   function dropBarModule(source, toRegion, beforeName) {
@@ -1577,7 +1578,7 @@ Item {
       y: targetRect ? Math.round(targetRect.y) : 0
       width: targetRect ? targetRect.width : 0
       height: targetRect ? targetRect.height : 0
-      color: Color.accent
+      color: Commons.Color.accent
       radius: Math.min(width, height) / 2
     }
   }

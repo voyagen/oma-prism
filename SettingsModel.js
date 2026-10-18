@@ -3,11 +3,12 @@ var defaults = {
   mode: "docked",
   display: "all",
   reserveSpace: true,
-  edgeGap: 5,
-  outerMargin: 10,
-  sectionPadding: 10,
-  widgetSpacing: 6,
-  thickness: 40,
+  matchHyprlandGaps: true,
+  edgeGap: 4,
+  outerMargin: 8,
+  sectionPadding: 14,
+  widgetSpacing: 12,
+  thickness: 32,
   radius: 12,
   outlineWidth: 0,
   outlineOpacity: 0.12,
@@ -16,12 +17,12 @@ var defaults = {
   opacity: 0.84,
   transparentOpacity: 0.6,
   iconPack: "lucide",
-  iconSize: 18,
+  iconSize: 15,
   tintPolicy: "foreground",
   semanticOverrides: {},
   widgetOverrides: {},
   fontFamily: "",
-  fontSize: 12,
+  fontSize: 13,
   transitionDuration: 160,
   reducedMotion: false,
   motionEnabled: true,
@@ -29,14 +30,16 @@ var defaults = {
   motionOverrides: {}
 }
 
-// One density unit controls the entire spacing rhythm; Default uses 5px.
+// One density unit controls the entire spacing rhythm; Default uses 4px.
+// Proportions follow the macOS menu bar: a short bar with generous gaps between glyphs.
 function densityPreset(unit) {
-  return {edgeGap:unit, outerMargin:2*unit, sectionPadding:2*unit, widgetSpacing:2*unit-4, thickness:8*unit}
+  return {edgeGap:Math.round(unit), outerMargin:Math.round(2*unit), sectionPadding:Math.round(3.5*unit),
+    widgetSpacing:Math.round(3*unit), thickness:8*unit}
 }
 var spacingPresets = {
-  compact: densityPreset(4),
-  default: densityPreset(5),
-  comfortable: densityPreset(6)
+  compact: densityPreset(3.5),
+  default: densityPreset(4),
+  comfortable: densityPreset(5)
 }
 
 function spacingPreset(raw) {
@@ -68,7 +71,7 @@ var bounds = {
 
 var enums = {
   mode: ["docked", "floating-bar", "islands"],
-  background: ["theme", "custom"],
+  background: ["theme", "custom", "glass"],
   iconPack: ["lucide", "material-symbols"],
   tintPolicy: ["foreground", "source"],
   animationIntensity: ["default", "expressive"]
@@ -179,7 +182,7 @@ function normalizeSetting(key, value) {
       return invalid(key + " must be one of: " + enums[key].join(", "))
     return valid(value)
   }
-  if (key === "reserveSpace" || key === "reducedMotion" || key === "motionEnabled")
+  if (key === "reserveSpace" || key === "matchHyprlandGaps" || key === "reducedMotion" || key === "motionEnabled")
     return typeof value === "boolean" ? valid(value) : invalid(key + " must be a boolean")
   if (key === "display") {
     if (typeof value !== "string" || value.trim() === "" || /[\u0000-\u001f\u007f]/.test(value))

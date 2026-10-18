@@ -52,9 +52,9 @@ The counts above are illustrative, not measured. `ready` means host injection is
 
 Use the settings menu for everyday changes. It has exactly three tabs:
 
-- **Appearance:** Docked → Floating → Islands style, bar position, spacing presets, screen choice, prevent window overlap, roundness, outline, background, opacity, transparency and reduced animations. Custom background colors use a native color picker.
+- **Appearance:** Docked → Floating → Islands style, bar position, spacing presets, screen choice, prevent window overlap, match Hyprland gaps, roundness, outline, background (theme, custom or Liquid Glass), opacity, transparency and reduced animations. Custom background colors use a native color picker.
 - **Icons & Text:** icon style and size, understandable color choices and text size.
-- **Widgets:** add, move or remove ordinary widgets and configure supported typed widget options. Widgets use readable names; unavailable saved widgets remain in the layout with a clear label.
+- **Widgets:** add, move or remove ordinary widgets and configure supported typed widget options. The host layout has six sections (`left`, `centerBegin`, `center`, `centerEnd`, `right`, `tray`); Prism draws three, so it folds them: **Center** shows `centerBegin` + `center` + `centerEnd` in that order (the host's left-to-right order; the exact-center anchor still applies) and **Right** shows `right` followed by `tray`. Folding is display-only: `shell.json` keeps its six sections, removing or reordering a widget edits the section it really lives in, and widgets added from the menu go to `left`, `center` or `right`. Widgets use readable names; unavailable saved widgets remain in the layout with a clear label.
 
 
 Layout modes always appear in this order:
@@ -62,6 +62,8 @@ Layout modes always appear in this order:
 1. **Docked** (default): one full-width continuous bar attached directly to the screen edge.
 2. **Floating**: one continuous rounded bar, inset from the screen edge by `edgeGap` and from the axis ends by `outerMargin`.
 3. **Islands**: separate floating backgrounds for the left, center and right sections; empty sections paint nothing.
+
+**Match Hyprland gaps** (`bar.prism.matchHyprlandGaps`, default on): in Floating and Islands the screen-edge gap equals Hyprland's `general:gaps_out` for the bar's side, and the bar's start/end margins equal the two perpendicular `gaps_out` sides (left/right for top and bottom bars; top/bottom for side bars), so screen edge → bar equals bar → window. The values are read live with `hyprctl getoption general:gaps_out -j` (1–4 CSS values), refreshed on Hyprland `configreloaded` (e.g. Omarchy's gaps toggle) and every 5 s. Docked stays flush. If `hyprctl` fails, or the option is off, the saved `edgeGap`/`outerMargin` (Spacing preset) apply.
 
 Saved `bar.prism.mode` values are `docked`, `floating-bar` and `islands`. Existing `floating` values meant islands: they load as Islands without changing geometry and migrate to `islands` on the next appearance save. Saved Docked configurations remain unchanged.
 
@@ -81,23 +83,26 @@ The host owns `~/.config/omarchy/shell.json` (schema `version: 1`). Prism prefer
 
 Prism-owned surfaces follow the supplied macOS-inspired guidelines: restrained hierarchy, aligned controls, semantic grouping, subtle state feedback and visible keyboard focus. Native widget menus and the native color chooser remain host-owned; Prism does not replace their behavior or edit packaged host components.
 
-The bar uses one density unit (`thickness / 8`) rather than independent pill tweaks. Default is the reference for new configurations:
+The bar uses one density unit (`thickness / 8`, 4 px at Default) rather than independent pill tweaks. Default is the reference for new configurations:
 
 | Geometry (logical px) | Compact | Default | Comfortable |
 |---|---:|---:|---:|
-| Bar height | 32 | 40 | 48 |
-| Pill height / icon hit area | 24 | 30 | 36 |
-| Top/bottom internal inset | 4 | 5 | 6 |
-| Horizontal text padding per side | 8 | 10 | 12 |
-| Gap between controls | 4 | 6 | 8 |
-| Minimum gap between major sections | 12 | 15 | 18 |
-| Left/right internal inset | 8 | 10 | 12 |
-| Floating outer margin | 8 | 10 | 12 |
-| Floating screen-edge gap | 4 | 5 | 6 |
+| Bar height | 28 | 32 | 40 |
+| Pill height / icon hit area | 21 | 24 | 30 |
+| Icon size (Icon size setting 15) | 13 | 15 | 19 |
+| Top/bottom internal inset | 3.5 | 4 | 5 |
+| Horizontal text padding per side | 7 | 8 | 10 |
+| Gap between controls | 11 | 12 | 15 |
+| Minimum gap between major sections | 21 | 24 | 30 |
+| Left/right internal inset | 12 | 14 | 18 |
+| Floating outer margin | 7 | 8 | 10 |
+| Floating screen-edge gap | 4 | 4 | 5 |
+
+Default follows macOS menu-bar proportions: a short bar, 13 px text, small glyphs and wide gaps between controls. The Icon size setting is the size at Default; bar icons scale with bar thickness (rounded, clamped to 12–32 px).
 
 Pill dimensions are reserved by native control/slot geometry, so paint does not steal neighboring gaps. Larger icons, text or native widgets can expand the bar while retaining its internal inset. Percentage-plus-icon power controls reserve both text and symbol space. Nested groups of public controls share the control gap; private application/artwork layouts remain widget-owned. Explicit command-widget horizontal padding and saved custom geometry remain supported; old spacing values are not silently rewritten and may appear as Custom until a preset is selected.
 
-Settings use the same density unit for controls, padding, icons and section rhythm. At Default, controls are 30 px high, icons 16 px, panel padding 16 px, related-control gaps 8 px and section gaps 24 px. Text remains readable at Compact (12 px baseline), Default (13 px) and Comfortable (14 px), honoring larger host typography. Tabs and multi-action groups wrap on narrow panels; selected actions use weight and a marker as well as fill, and keyboard focus remains visible. Reset confirmation puts Cancel before Confirm reset; widget configuration retains typed fields and disk-confirmed saves. The background chooser shows the saved color beside the native color picker.
+Settings use the same density unit for controls, padding, icons and section rhythm. At Default, controls are 30 px high, icons 16 px, panel padding 16 px, related-control gaps 8 px and section gaps 24 px. Text remains readable at Compact (12.5 px), Default (13 px) and Comfortable (14 px), honoring larger host typography. Tabs and multi-action groups wrap on narrow panels; selected actions use weight and a marker as well as fill, and keyboard focus remains visible. Reset confirmation puts Cancel before Confirm reset; widget configuration retains typed fields and disk-confirmed saves. The background chooser shows the saved color beside the native color picker.
 
 Verification: all four isolated QML/Wayland fixtures passed, including three densities, 19 bar-layout scenarios, all settings tabs, typed configuration, inline reset, 480 px narrow panel fit, Tab traversal and Escape/reopen. Eighteen settings-state captures were produced and representative normal/narrow/density states visually inspected. Native color acceptance/cancellation, saved customization preservation and immediate actions passed the existing runtime scenarios; 63 Node regressions passed. The layout detector reported no findings (its QML coverage is limited). The updated runtime is installed and activated: production health reports ready with no pending write or settings error. Native vertical-clock sizing was reproduced and corrected; the real host clock passes all three densities/layout modes against both checkout and installed resources. The active configuration exactly matches the activation backup.
 
@@ -153,6 +158,46 @@ Default semantics are deliberately limited: Bluetooth state replacement plus one
 Rail clipping also gates control, pill and semantic motion. `ModuleSlot.motionVisible` tracks the Flickable's committed content translation and reuses `drawnSlotRect` for the actual clipped intersection. Fully scrolled-out slots suspend motion even though QML still reports `visible: true`; scrolling back resumes ongoing state. The runtime smoke covers scroll-out, scroll-back, partial intersection and the exact viewport boundary.
 
 Verification: 62 Node regressions and both actual QML/Wayland scenario sets passed on Qt 6.11.2 / Quickshell 0.3.1. Motion scenarios exercise immediate actions, overlay forwarding, drag-away/rapid input, independent transforms, replacement interruption, reduced variants, reactive policy changes, active/hover pill precedence, vertical pills and widget teardown. The final rounded surface was inspected in an isolated rendered fixture. A final `QSG_RENDER_TIMING=1` run reported 339 rendered frames, p95 frame-work cost rounded to 0 ms at Qt's millisecond precision, and maximum 15 ms (during bar-window orientation reconfiguration). These coarse timings are not an end-to-end compositor latency or universal frame-drop guarantee. Desktop selection/configuration was not changed.
+
+## Liquid Glass background
+
+Appearance → Background → **Liquid Glass** (`bar.prism.background: "glass"`) approximates Apple's Liquid Glass material. It is an approximation, not pixel-exact.
+
+A Wayland layer-shell client cannot read the pixels behind its own surface, but the wallpaper is known: the host paints `~/.local/state/omarchy/current/background` itself. Prism loads the same image (`WallpaperBackdrop.qml`, resolved with `readlink -f`, re-checked every 2.5 s only while glass is on, decoded at screen size with the host's `PreserveAspectCrop` mapping) and `GlassSurface.qml` + `shaders/liquidglass.frag` do the optics on it:
+
+- **Wallpaper (client-side, no compositor setup):** the wallpaper under the bar stays recognizable (light ~2 px blur, saturation ~1.15x, small lift) with a flat interior and a convex-lens rim (sample displaced up to ~26 px along the rounded-rectangle normal over a ~20 px band, with slight per-channel dispersion). A uniform white veil (~8%, independent of the tint slider) and a brighter edge are added, then the theme tint, a crisp ~1 px specular hairline (strongest on the top edge and corners, faint at the bottom), a soft inner highlight and noise.
+- **Limits:** windows overlapping the bar are not refracted or blurred, and the glass is opaque (it is drawn over them). With "reserve space" on (the default) the bar only sits over the wallpaper, which is the supported case. Video wallpapers, a missing wallpaper or a shader failure fall back to a plain tinted pane. A theme change swaps the wallpaper without the host's crossfade (the previous frame stays until the new one has decoded).
+- **Optional compositor blur:** if you turn "reserve space" off and want a blurred translucent pane over windows, use the Hyprland rule below instead (it only helps when the pane is translucent, which the wallpaper path is not).
+
+The visibility slider (`opacity`, or `transparentOpacity` with a transparent bar) is the tint strength; at low values the refracted wallpaper is clearly visible. Text contrast is computed against the theme bar color. The outline setting is ignored for glass because the shader draws its own border. Theme and Custom backgrounds are unchanged.
+
+Hyprland 0.55+ (Lua config, e.g. in `~/.config/hypr/hyprland.lua` or a file it requires; Prism does not edit your config):
+
+```lua
+hl.layer_rule({
+  name = "prism-glass-blur",
+  match = { namespace = "omarchy-bar" },
+  blur = true,
+  ignore_alpha = 0,
+})
+```
+
+Legacy hyprlang (`hyprland.conf`):
+
+```
+layerrule = blur, omarchy-bar
+layerrule = ignorealpha 0, omarchy-bar
+```
+
+Newer legacy builds spell these `layerrule = match:namespace omarchy-bar, blur on` and `ignore_alpha 0`; check your version's layer-rule page. `ignore_alpha 0` lets blur apply under translucent pixels. Tune `decoration.blur` (`size`, `passes`, `vibrancy`) for the strength of the backdrop effect. The namespace is the host's layer name for the bar (`hyprctl layers` to confirm).
+
+The compiled shader `shaders/liquidglass.frag.qsb` is committed next to its source. Rebuild after editing with `qsb --qt6 -o shaders/liquidglass.frag.qsb shaders/liquidglass.frag` (`qt6-shadertools`). The installer copies `GlassSurface.qml` and `shaders/` into the runtime.
+
+## Qt 6.12 theme compatibility
+
+QtQuick 6.12 introduces a `Color` singleton that shadows unqualified Omarchy `Color` references. Prism explicitly imports `qs.Commons as Commons` and uses `Commons.Color` for its bar, settings, tooltip and state colors. This prevents undefined theme bindings from leaving black text on dark backgrounds; saved background colors and opacity remain unchanged.
+
+After updating an installed copy, run `omarchy restart shell` to load the corrected QML. The runtime smoke checks actual native text contrast on opaque black, theme-background resolution and settings text contrast. Other third-party plugins using bare `Color` need the same namespace fix in their own code.
 
 ## Local checks
 

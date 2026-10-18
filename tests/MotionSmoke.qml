@@ -55,7 +55,7 @@ Item {
     id: bar
     home: suite.testHome
     barWidgetRegistry: registry
-    barConfig: ({id:"voyagen.prism",position:"top",layout:{left:[],center:[],right:[]},prism:{reserveSpace:false}})
+    barConfig: ({id:"voyagen.prism",position:"top",layout:{left:[],center:[],right:[]},prism:{matchHyprlandGaps:false,reserveSpace:false}})
   }
   PanelWindow {
     id: window

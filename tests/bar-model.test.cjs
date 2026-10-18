@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {axisPositions,sectionGeometry,inlineSettingsDelta,moveLayoutEntry,addLayoutEntry,removeLayoutEntry,replaceEntrySettings,entrySettings,readableForeground,contrastRatio,intersectRect} = require('../BarModel.js');
+const {foldLayout,moveFoldedEntry,removeFoldedEntry,replaceFoldedEntrySettings,moveFoldedModule,axisPositions,sectionGeometry,inlineSettingsDelta,moveLayoutEntry,addLayoutEntry,removeLayoutEntry,replaceEntrySettings,entrySettings,readableForeground,contrastRatio,intersectRect} = require('../BarModel.js');
 const settings = {mode:'islands',outerMargin:12,sectionPadding:16,widgetSpacing:8};
 function bounded(result,length) {
   for (const interval of Object.values(result.islands)) {
@@ -243,4 +243,78 @@ test('prototype-looking own data survives clones and settings extraction without
   assert.deepEqual(draft.__proto__,{nested:[4]});
   rejected(addLayoutEntry(layout,'right','__proto__',{allowMultiple:false}),layout);
   rejected(replaceEntrySettings(layout,'left',0,JSON.parse('{"id":null}')),layout);
+});
+
+test('sectionGeometry honors asymmetric start/end margins and stays backward compatible',()=>{
+  const sizes={left:[100],center:[40],right:[60]};
+  const sym=sectionGeometry(1000,sizes,-1,{mode:'islands',outerMargin:32,sectionPadding:10,widgetSpacing:6});
+  const same=sectionGeometry(1000,sizes,-1,{mode:'islands',outerMargin:0,outerMarginStart:32,outerMarginEnd:32,sectionPadding:10,widgetSpacing:6});
+  assert.deepEqual(same,sym);
+  const asym=sectionGeometry(1000,sizes,-1,{mode:'islands',outerMargin:5,outerMarginStart:48,outerMarginEnd:16,sectionPadding:10,widgetSpacing:6});
+  assert.equal(asym.islands.left.start,48);
+  assert.equal(asym.islands.right.start+asym.islands.right.extent,984);
+  const docked=sectionGeometry(1000,sizes,-1,{mode:'docked',outerMarginStart:48,outerMarginEnd:16,sectionPadding:10,widgetSpacing:6});
+  assert.equal(docked.islands.left.start,0);
+  assert.equal(docked.islands.right.start+docked.islands.right.extent,1000);
+});
+
+test('parseHyprlandGaps follows CSS gap semantics',()=>{
+  const {parseHyprlandGaps,hyprlandBarGaps}=require('../BarModel.js');
+  assert.deepEqual(parseHyprlandGaps('16 32 32 32'),{top:16,right:32,bottom:32,left:32});
+  assert.deepEqual(parseHyprlandGaps('8'),{top:8,right:8,bottom:8,left:8});
+  assert.deepEqual(parseHyprlandGaps('4 10'),{top:4,right:10,bottom:4,left:10});
+  assert.deepEqual(parseHyprlandGaps('1 2 3'),{top:1,right:2,bottom:3,left:2});
+  assert.equal(parseHyprlandGaps(''),null);
+  assert.equal(parseHyprlandGaps('1 2 3 4 5'),null);
+  assert.equal(parseHyprlandGaps('a b'),null);
+  assert.equal(parseHyprlandGaps(undefined),null);
+  const g={top:16,right:32,bottom:24,left:40};
+  assert.deepEqual(hyprlandBarGaps(g,'top'),{edgeGap:16,outerMarginStart:40,outerMarginEnd:32});
+  assert.deepEqual(hyprlandBarGaps(g,'bottom'),{edgeGap:24,outerMarginStart:40,outerMarginEnd:32});
+  assert.deepEqual(hyprlandBarGaps(g,'left'),{edgeGap:40,outerMarginStart:16,outerMarginEnd:24});
+  assert.deepEqual(hyprlandBarGaps(g,'right'),{edgeGap:32,outerMarginStart:16,outerMarginEnd:24});
+  assert.equal(hyprlandBarGaps(null,'top'),null);
+});
+
+const hostLayout=()=>({left:['l'],centerBegin:['b'],center:['c1','c2'],centerEnd:['e1','e2'],right:['r'],tray:['t']});
+test('foldLayout draws centerBegin+center+centerEnd as center and tray after right',()=>{
+  const folded=foldLayout(hostLayout());
+  assert.deepEqual([folded.left,folded.center,folded.right],[['l'],['b','c1','c2','e1','e2'],['r','t']]);
+  assert.deepEqual(folded.sources.center.map(s=>`${s.section}:${s.index}`),['centerBegin:0','center:0','center:1','centerEnd:0','centerEnd:1']);
+  assert.deepEqual(folded.sources.right,[{section:'right',index:0},{section:'tray',index:0}]);
+});
+test('foldLayout tolerates empty, missing and non-array sections',()=>{
+  for(const input of [undefined,null,[],'x',{}]) assert.deepEqual(foldLayout(input),{left:[],center:[],right:[],sources:{left:[],center:[],right:[]}});
+  const folded=foldLayout({left:'a',center:{0:'x'},centerEnd:['e'],tray:null,right:['r']});
+  assert.deepEqual([folded.left,folded.center,folded.right],[[],['e'],['r']]);
+  const original=hostLayout();foldLayout(original);
+  assert.deepEqual(original,hostLayout());
+});
+test('folded editors edit the real host section and never collapse sections',()=>{
+  const layout=hostLayout();
+  assert.deepEqual(removeFoldedEntry(layout,'center',3).layout,{...hostLayout(),centerEnd:['e2']});
+  assert.deepEqual(removeFoldedEntry(layout,'right',1).layout,{...hostLayout(),tray:[]});
+  assert.deepEqual(replaceFoldedEntrySettings(layout,'center',0,{x:1}).layout.centerBegin,[{id:'b',x:1}]);
+  // within-view moves keep the entry's section where possible
+  assert.deepEqual(moveFoldedEntry(layout,'center',3,'center',4).layout,{...hostLayout(),centerEnd:['e2','e1']});
+  // crossing a section boundary joins the neighbouring section instead of sticking
+  const earlier=moveFoldedEntry(layout,'center',3,'center',2).layout;
+  assert.deepEqual([earlier.center,earlier.centerEnd],[['c1','e1','c2'],['e2']]);
+  const first=moveFoldedEntry(layout,'center',3,'center',3).layout;
+  assert.deepEqual(first,layout);
+  // arriving from another view lands in that view's own section
+  const across=moveFoldedEntry(layout,'left',0,'center',0).layout;
+  assert.deepEqual([across.left,across.center,across.centerBegin],[[],['l','c1','c2'],['b']]);
+  assert.deepEqual(moveFoldedEntry(layout,'center',0,'right',2).layout.right,['r','b']);
+  assert.notEqual(moveFoldedEntry(layout,'center',9,'right',0).error,'');
+  assert.notEqual(moveFoldedEntry(layout,'tray',0,'right',0).error,'');
+  assert.deepEqual(layout,hostLayout());
+});
+test('moveFoldedModule mutates raw host layout in place by id',()=>{
+  const layout={left:[],center:['c'],centerEnd:['clock','bt'],right:['r']};
+  assert.equal(moveFoldedModule(layout,'center','bt','center','clock'),true);
+  assert.deepEqual(layout,{left:[],center:['c'],centerEnd:['bt','clock'],right:['r']});
+  assert.equal(moveFoldedModule(layout,'center','clock','right',''),true);
+  assert.deepEqual([layout.centerEnd,layout.right],[['bt'],['r','clock']]);
+  assert.equal(moveFoldedModule(layout,'center','missing','right',''),false);
 });

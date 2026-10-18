@@ -134,7 +134,7 @@ Item {
       try {
         var settingsButton=proof.bar.moduleWidgets("voyagen.prism.settings")[0].settingsButton
         var svg=proof.find(settingsButton,function(item){return "source" in item && String(item.source).endsWith("/prism.svg") && "paintedExtent" in item})
-        proof.check(svg && svg.status===Image.Ready && svg.opticalSize===proof.bar.prismSettings.iconSize,"Prism SVG matches configured plugin optical size: "+JSON.stringify({found:!!svg,status:svg ? svg.status : -1,size:svg ? svg.opticalSize : -1,expected:proof.bar.prismSettings.iconSize,api:proof.bar.moduleWidgets("voyagen.prism.settings")[0].bar.prismIconSize}))
+        proof.check(svg && svg.status===Image.Ready && svg.opticalSize===proof.bar.effectiveIconSize,"Prism SVG matches configured plugin optical size: "+JSON.stringify({found:!!svg,status:svg ? svg.status : -1,size:svg ? svg.opticalSize : -1,expected:proof.bar.effectiveIconSize,api:proof.bar.moduleWidgets("voyagen.prism.settings")[0].bar.prismIconSize}))
         var originalWidth=settingsButton.width,originalHeight=settingsButton.height
         for(var size of [12,24,32]) {
           proof.check(proof.bar.commitPrismSetting("iconSize",size),"live icon size accepts "+size)

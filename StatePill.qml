@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import qs.Commons
+import qs.Commons as Commons
 
 // Paint-only state feedback. Opacity changes never alter layout or hit targets.
 Rectangle {
@@ -28,7 +29,7 @@ Rectangle {
   y: parent ? (parent.height - height) / 2 : 0
   width: vertical ? crossExtent : Math.max(parent ? parent.width : 0, crossExtent, labelExtent > 0 ? labelExtent + 2 * horizontalPadding : 0)
   height: vertical ? Math.max(parent ? parent.height : 0, crossExtent) : crossExtent
-  color: Color.accent
+  color: Commons.Color.accent
   radius: Math.min(width, height) / 2
   opacity: targetOpacity
   Behavior on opacity {

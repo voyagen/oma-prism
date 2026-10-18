@@ -65,7 +65,7 @@ test("layout defaults and legacy islands survive normalization and restart", () 
 
 test("enumerations are exact, and booleans never accept truthy substitutes", () => {
   const options = {
-    mode: ["docked", "floating-bar", "islands"], background: ["theme", "custom"],
+    mode: ["docked", "floating-bar", "islands"], background: ["theme", "custom", "glass"],
     iconPack: ["lucide", "material-symbols"], tintPolicy: ["foreground", "source"]
   }
   for (const [key, values] of Object.entries(options)) {
@@ -73,7 +73,7 @@ test("enumerations are exact, and booleans never accept truthy substitutes", () 
     for (const value of [values[0].toUpperCase(), ` ${values[0]}`, "", "unknown", 0, null, {}, new String(values[0])])
       rejected(key, value)
   }
-  for (const key of ["reserveSpace", "reducedMotion", "motionEnabled"]) {
+  for (const key of ["reserveSpace", "matchHyprlandGaps", "reducedMotion", "motionEnabled"]) {
     accepted(key, false, false)
     accepted(key, true, true)
     for (const value of [0, 1, "false", "true", null, undefined, {}, []]) rejected(key, value)

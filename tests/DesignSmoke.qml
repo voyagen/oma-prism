@@ -120,7 +120,7 @@ Item {
     property var config: ({version:1,bar:{id:"voyagen.prism",position:"top",centerAnchor:"prism.clock",
       layout:{left:[{id:"prism.status",label:"Studio",enabled:true,count:3,mode:"balanced"},"prism.audio","prism.network"],
         center:["prism.clock"],right:["prism.power","prism.session"]},
-      prism:{reserveSpace:false,motionEnabled:false,radius:12}}})
+      prism:{matchHyprlandGaps:false,reserveSpace:false,motionEnabled:false,radius:12}}})
     function mutateShellConfig(mutator) {
       var next = JSON.parse(JSON.stringify(config))
       mutator(next)

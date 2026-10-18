@@ -14,7 +14,7 @@ const configPath = path.join(home, '.config/omarchy/shell.json');
 const pluginDirectory = path.join(home, '.config/omarchy/plugins');
 const targets = [['voyagen.prism', project], ['voyagen.prism.settings', path.join(project, 'settings')]];
 const marker = '.oma-prism-install.json';
-const required = ['Bar.qml', 'BarSurface.qml', 'AxisRail.qml', 'ModuleSlot.qml', 'CustomCommandModule.qml', 'Settings.qml', 'IconAdapter.qml', 'InteractionMotion.qml', 'StatePill.qml', 'BarModel.js', 'SettingsModel.js', 'IconResolver.js', 'shared/SvgIcon.qml', 'shared/AnimatedIcon.qml', 'shared/prism.svg', 'LICENSE'];
+const required = ['Bar.qml', 'BarSurface.qml', 'AxisRail.qml', 'ModuleSlot.qml', 'CustomCommandModule.qml', 'Settings.qml', 'IconAdapter.qml', 'InteractionMotion.qml', 'StatePill.qml', 'BarModel.js', 'SettingsModel.js', 'IconResolver.js', 'shared/SvgIcon.qml', 'shared/AnimatedIcon.qml', 'shared/prism.svg', 'GlassSurface.qml', 'HyprlandGaps.qml', 'WallpaperBackdrop.qml', 'shaders/liquidglass.frag.qsb', 'LICENSE'];
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 function command(program, args, required = true, timeout = 5000) {
   const result = spawnSync(program, args, {encoding: 'utf8', timeout, killSignal: 'SIGKILL'});
@@ -140,7 +140,7 @@ function install(dev) {
         fs.mkdirSync(runtime, {recursive:true});
         if (id === 'voyagen.prism') {
           const files = fs.readdirSync(project).filter(name => (name.endsWith('.qml') && !/^(Smoke|development)/i.test(name)) || ['BarModel.js', 'SettingsModel.js', 'IconResolver.js', 'LICENSE'].includes(name));
-          for (const name of [...files, 'assets', 'shared']) fs.cpSync(path.join(project, name), path.join(runtime, name), {recursive:true,dereference:true});
+          for (const name of [...files, 'assets', 'shared', 'shaders']) fs.cpSync(path.join(project, name), path.join(runtime, name), {recursive:true,dereference:true});
         } else {
           fs.copyFileSync(path.join(source, 'BarWidget.qml'), path.join(runtime, 'BarWidget.qml'));
           fs.cpSync(path.join(project, 'shared'), path.join(runtime, 'shared'), {recursive:true,dereference:true});

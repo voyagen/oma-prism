@@ -44,11 +44,11 @@ Item {
     id: bar
     home: Quickshell.env("PRISM_TEST_HOME")
     barWidgetRegistry: registry
-    barConfig: ({id:"voyagen.prism",position:"top",centerAnchor:"omarchy.clock",layout:{left:["prism.group","prism.zero"],center:["omarchy.clock"],right:["prism.power"]},prism:{reserveSpace:false,motionEnabled:false}})
+    barConfig: ({id:"voyagen.prism",position:"top",centerAnchor:"omarchy.clock",layout:{left:["prism.group","prism.zero"],center:["omarchy.clock"],right:["prism.power"]},prism:{matchHyprlandGaps:false,reserveSpace:false,motionEnabled:false}})
   }
   function configure() {
     current=cases[index]
-    bar.barConfig=Object.assign({},bar.barConfig,{position:current.position,prism:Object.assign({},SettingsModel.spacingPresets[current.density],{mode:current.mode,reserveSpace:false,motionEnabled:false,iconSize:current.large?32:18,fontSize:current.large?24:12})})
+    bar.barConfig=Object.assign({},bar.barConfig,{position:current.position,prism:Object.assign({},SettingsModel.spacingPresets[current.density],{mode:current.mode,matchHyprlandGaps:false,reserveSpace:false,motionEnabled:false,iconSize:current.large?32:18,fontSize:current.large?24:12})})
   }
   function inspect() {
     var panel=bar.barPanels[0], surface=panel.surface

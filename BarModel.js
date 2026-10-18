@@ -50,15 +50,86 @@ function cloneLayoutData(value) {
   return copy
 }
 
+// Prism draws three sections; the host layout has six. Host sections fold into
+// Prism's: centerBegin + center + centerEnd draw as Prism's center (the host's
+// left-to-right order), and tray draws after right. shell.json is never folded.
+var FOLDED_SECTIONS = {
+  left: ["left"],
+  center: ["centerBegin", "center", "centerEnd"],
+  right: ["right", "tray"]
+}
+var VIEW_SECTIONS = ["left", "center", "right"]
+var HOST_SECTIONS = ["left", "centerBegin", "center", "centerEnd", "right", "tray"]
+
+function validView(view) {
+  return view === "left" || view === "center" || view === "right"
+}
+
+// Pure fold of a host layout. Returns {left, center, right, sources} where
+// sources[view][i] = {section, index} locates rendered entry i in the host
+// layout. Missing keys and non-array values contribute nothing.
+function foldLayout(layout) {
+  var source = isPlainObject(layout) ? layout : {}
+  var folded = { left: [], center: [], right: [], sources: { left: [], center: [], right: [] } }
+  for (var v = 0; v < VIEW_SECTIONS.length; v++) {
+    var view = VIEW_SECTIONS[v]
+    for (var s = 0; s < FOLDED_SECTIONS[view].length; s++) {
+      var section = FOLDED_SECTIONS[view][s]
+      var entries = Array.isArray(source[section]) ? source[section] : []
+      for (var i = 0; i < entries.length; i++) {
+        folded[view].push(entries[i])
+        folded.sources[view].push({ section: section, index: i })
+      }
+    }
+  }
+  return folded
+}
+
+// Position of host entry (section, index) in the folded view arrays.
+function foldedPosition(folded, section, index) {
+  for (var v = 0; v < VIEW_SECTIONS.length; v++) {
+    var sources = folded.sources[VIEW_SECTIONS[v]]
+    for (var i = 0; i < sources.length; i++)
+      if (sources[i].section === section && sources[i].index === index) return { view: VIEW_SECTIONS[v], index: i }
+  }
+  return null
+}
+
+// Where an entry placed at folded position toIndex of `view` belongs in the
+// host layout. toIndex counts the view after the moved entry is removed.
+// `moved` is the entry's current {section, index} when it came from the same
+// view: it keeps its section unless it lands beside only another section's
+// entries. Entries arriving from elsewhere go into the view's own section.
+function resolveFoldedTarget(folded, view, toIndex, moved) {
+  var list = []
+  var sameView = false
+  var sources = folded.sources[view]
+  for (var i = 0; i < sources.length; i++) {
+    if (moved && sources[i].section === moved.section && sources[i].index === moved.index) { sameView = true; continue }
+    list.push(sources[i])
+  }
+  var section = view
+  if (sameView && list.length > 0) {
+    var before = toIndex > 0 ? list[toIndex - 1] : null
+    var after = toIndex < list.length ? list[toIndex] : null
+    if ((before && before.section === moved.section) || (after && after.section === moved.section)) section = moved.section
+    else section = (after || before).section
+  } else if (sameView) section = moved.section
+  var index = 0
+  for (var j = 0; j < toIndex && j < list.length; j++) if (list[j].section === section) index++
+  return { section: section, index: index }
+}
+
 function validLayoutSection(section) {
-  return section === "left" || section === "center" || section === "right"
+  return HOST_SECTIONS.indexOf(section) >= 0
 }
 
 function layoutEditorError(layout) {
   if (!editorPlainObject(layout)) return "Layout must be a plain object."
-  var sections = ["left", "center", "right"]
-  for (var s = 0; s < sections.length; s++) {
-    var section = sections[s]
+  for (var s = 0; s < HOST_SECTIONS.length; s++) {
+    var section = HOST_SECTIONS[s]
+    var optional = section === "centerBegin" || section === "centerEnd" || section === "tray"
+    if (optional && !Object.prototype.hasOwnProperty.call(layout, section)) continue
     if (!Object.prototype.hasOwnProperty.call(layout, section) || !Array.isArray(layout[section]))
       return "Layout section must be an array: " + section
     for (var i = 0; i < layout[section].length; i++) {
@@ -99,10 +170,11 @@ function addLayoutEntry(layout, section, id, metadata) {
   if (!error && (typeof id !== "string" || id.trim() === "")) error = "Widget ID must be a nonempty string."
   if (!error && metadata !== undefined && !editorPlainObject(metadata)) error = "Widget metadata must be a plain object."
   if (!error && metadata && Object.prototype.hasOwnProperty.call(metadata, "allowMultiple") && metadata.allowMultiple === false) {
-    var sections = ["left", "center", "right"]
-    for (var s = 0; s < sections.length; s++) {
-      for (var i = 0; i < layout[sections[s]].length; i++) {
-        if (entryId(layout[sections[s]][i]) === id) error = "This widget permits only one instance."
+    for (var s = 0; s < HOST_SECTIONS.length; s++) {
+      var existing = layout[HOST_SECTIONS[s]]
+      if (!Array.isArray(existing)) continue
+      for (var i = 0; i < existing.length; i++) {
+        if (entryId(existing[i]) === id) error = "This widget permits only one instance."
       }
     }
   }
@@ -141,6 +213,63 @@ function replaceEntrySettings(layout, section, index, settings) {
 }
 
 
+// Folded-view editors: the settings list shows Prism's three sections, so
+// these take (view, index) coordinates, translate them to the entry's real
+// host section, and edit that, leaving every other host section untouched.
+function foldedSource(layout, view, index) {
+  if (!validView(view)) return null
+  var source = foldLayout(layout).sources[view][index]
+  return typeof index === "number" && source ? source : null
+}
+
+function moveFoldedEntry(layout, fromView, fromIndex, toView, toIndex) {
+  var error = layoutEditorError(layout)
+  if (!error && (!validView(fromView) || !validView(toView))) error = "Unknown layout section."
+  var folded = error ? null : foldLayout(layout)
+  var source = error ? null : foldedSource(layout, fromView, fromIndex)
+  if (!error && !source) error = "Source index is outside the layout section."
+  var destinationLength = !error ? folded[toView].length - (fromView === toView ? 1 : 0) : 0
+  if (!error && !validLayoutIndex(toIndex, destinationLength, true))
+    error = "Destination index is outside the section after removal."
+  if (error) return { layout: layout, error: error }
+  var target = resolveFoldedTarget(folded, toView, toIndex, fromView === toView ? source : null)
+  return moveLayoutEntry(layout, source.section, source.index, target.section, target.index)
+}
+
+function removeFoldedEntry(layout, view, index) {
+  var source = layoutEditorError(layout) ? null : foldedSource(layout, view, index)
+  if (!source) return removeLayoutEntry(layout, validView(view) ? "left" : view, -1)
+  return removeLayoutEntry(layout, source.section, source.index)
+}
+
+function replaceFoldedEntrySettings(layout, view, index, settings) {
+  var source = layoutEditorError(layout) ? null : foldedSource(layout, view, index)
+  if (!source) return replaceEntrySettings(layout, validView(view) ? "left" : view, -1, settings)
+  return replaceEntrySettings(layout, source.section, source.index, settings)
+}
+
+// Mutates a raw host layout in place (drag and drop inside shell.json). Names
+// are widget ids; beforeName "" appends to the destination view.
+function moveFoldedModule(layout, fromView, fromName, toView, beforeName) {
+  if (!isPlainObject(layout) || !validView(fromView) || !validView(toView)) return false
+  var folded = foldLayout(layout)
+  var fromIndex = entryIndex(folded[fromView], fromName)
+  if (fromIndex < 0) return false
+  var toIndex = beforeName ? entryIndex(folded[toView], beforeName) : folded[toView].length
+  if (toIndex < 0) toIndex = folded[toView].length
+  var same = fromView === toView
+  if (same && fromIndex === toIndex) return false
+  if (same && fromIndex < toIndex) toIndex -= 1
+  toIndex = Math.max(0, Math.min(toIndex, folded[toView].length - (same ? 1 : 0)))
+  if (same && fromIndex === toIndex) return false
+  var source = folded.sources[fromView][fromIndex]
+  var target = resolveFoldedTarget(folded, toView, toIndex, same ? source : null)
+  if (!Array.isArray(layout[target.section])) layout[target.section] = []
+  var entry = layout[source.section].splice(source.index, 1)[0]
+  layout[target.section].splice(target.index, 0, entry)
+  return true
+}
+
 function entryIndex(entries, name) {
   if (!Array.isArray(entries)) return -1
   for (var i = 0; i < entries.length; i++) {
@@ -160,7 +289,7 @@ function entryIndex(entries, name) {
 // a duplicated id makes the push ambiguous.
 function inlineSettingsDelta(current, next) {
   if (!isPlainObject(current) || !isPlainObject(next)) return null
-  var regions = ["left", "center", "right"]
+  var regions = HOST_SECTIONS
   var counts = {}
   for (var r = 0; r < regions.length; r++) {
     var entries = Array.isArray(next[regions[r]]) ? next[regions[r]] : []
@@ -334,11 +463,39 @@ function intersectRect(a, b) {
   return width > 0 && height > 0 ? {x:x,y:y,width:width,height:height} : null
 }
 
+// Hyprland CSS gap data ("16 32 32 32", 1-4 values) -> {top,right,bottom,left}; null if unparsable.
+function parseHyprlandGaps(custom) {
+  if (typeof custom !== "string") return null
+  var parts = custom.trim().split(/\s+/)
+  if (parts.length < 1 || parts.length > 4) return null
+  var v = []
+  for (var i = 0; i < parts.length; i++) {
+    if (!/^\d+(\.\d+)?$/.test(parts[i])) return null
+    v.push(Math.round(Number(parts[i])))
+  }
+  if (v.length === 1) return {top:v[0],right:v[0],bottom:v[0],left:v[0]}
+  if (v.length === 2) return {top:v[0],right:v[1],bottom:v[0],left:v[1]}
+  if (v.length === 3) return {top:v[0],right:v[1],bottom:v[2],left:v[1]}
+  return {top:v[0],right:v[1],bottom:v[2],left:v[3]}
+}
+
+// Bar edge gap and axis start/end margins that mirror Hyprland's gaps_out for a bar on `position`.
+function hyprlandBarGaps(gaps, position) {
+  if (!gaps) return null
+  var side = ["top","bottom","left","right"].indexOf(position) >= 0 ? position : "top"
+  var vertical = side === "left" || side === "right"
+  return {edgeGap:gaps[side], outerMarginStart:vertical ? gaps.top : gaps.left, outerMarginEnd:vertical ? gaps.bottom : gaps.right}
+}
+
 function sectionGeometry(axisLength, sizes, anchorIndex, settings) {
   var length = nonnegative(axisLength), config = settings || {}
   var pad = nonnegative(config.sectionPadding), spacing = nonnegative(config.widgetSpacing)
   var gap = Math.max(spacing, nonnegative(config.groupSpacing))
-  var margin = Math.min(length / 2, config.mode === "docked" ? 0 : nonnegative(config.outerMargin))
+  // Optional outerMarginStart/outerMarginEnd override the symmetric outerMargin per axis end.
+  var docked = config.mode === "docked"
+  function marginAt(value) { return Math.min(length / 2, docked ? 0 : nonnegative(value === undefined || value === null ? config.outerMargin : value)) }
+  var marginStart = marginAt(config.outerMarginStart), marginEnd = marginAt(config.outerMarginEnd)
+  var margin = Math.max(marginStart, marginEnd)
   var groups = {}, islands = {}, diagnostics = []
   var names = ["left","right","center","centerBefore","centerAnchor","centerAfter"]
   function group(start, extent, content, alignment) {
@@ -361,8 +518,8 @@ function sectionGeometry(axisLength, sizes, anchorIndex, settings) {
   var rightRail = right > 0 ? Math.min(rightNatural,48+2*pad) : 0
   var centerStart = length/2, centerEnd = length/2
   var anchor = Number.isInteger(anchorIndex) && anchorIndex >= 0 && anchorIndex < centerValues.length ? nonnegative(centerValues[anchorIndex]) : 0
-  var leftHalf = Math.max(0,length/2-margin-gap-leftRail)
-  var rightHalf = Math.max(0,length/2-margin-gap-rightRail)
+  var leftHalf = Math.max(0,length/2-marginStart-gap-leftRail)
+  var rightHalf = Math.max(0,length/2-marginEnd-gap-rightRail)
   var before = anchor > 0 ? axisPositions(centerValues.slice(0,anchorIndex),spacing).extent : 0
   var after = anchor > 0 ? axisPositions(centerValues.slice(anchorIndex+1),spacing).extent : 0
   var beforeGap = before > 0 ? spacing : 0, afterGap = after > 0 ? spacing : 0
@@ -386,12 +543,12 @@ function sectionGeometry(axisLength, sizes, anchorIndex, settings) {
     if (anchor > 0) diagnostics.push("Selected center anchor or its neighboring viewports cannot fit; using centered scrollable group")
   }
   islands.center = {start:centerStart,extent:Math.max(0,centerEnd-centerStart)}
-  var leftBudget = Math.max(0,(center > 0 ? centerStart-gap : length/2-gap/2)-margin)
-  var rightBudget = Math.max(0,length-margin-(center > 0 ? centerEnd+gap : length/2+gap/2))
+  var leftBudget = Math.max(0,(center > 0 ? centerStart-gap : length/2-gap/2)-marginStart)
+  var rightBudget = Math.max(0,length-marginEnd-(center > 0 ? centerEnd+gap : length/2+gap/2))
   var leftPaint = Math.min(leftNatural,leftBudget), rightPaint = Math.min(rightNatural,rightBudget)
-  islands.left = {start:margin,extent:leftPaint}
-  islands.right = {start:Math.max(margin,length-margin-rightPaint),extent:rightPaint}
-  groups.left = group(margin+Math.min(pad,leftPaint/2),Math.max(0,leftPaint-2*pad),left,"start")
+  islands.left = {start:marginStart,extent:leftPaint}
+  islands.right = {start:Math.max(marginStart,length-marginEnd-rightPaint),extent:rightPaint}
+  groups.left = group(marginStart+Math.min(pad,leftPaint/2),Math.max(0,leftPaint-2*pad),left,"start")
   groups.right = group(islands.right.start+Math.min(pad,rightPaint/2),Math.max(0,rightPaint-2*pad),right,"end")
   if (left > 0 && groups.left.extent <= 24 || right > 0 && groups.right.extent <= 24 || center > 0 && islands.center.extent <= 2*pad+24)
     diagnostics.push("Cramped geometry: native viewports are constrained; settings remain reachable through IPC")
@@ -402,11 +559,20 @@ if (typeof module !== "undefined") {
   module.exports = {
     axisPositions: axisPositions,
     sectionGeometry: sectionGeometry,
+    parseHyprlandGaps: parseHyprlandGaps,
+    hyprlandBarGaps: hyprlandBarGaps,
     readableForeground: readableForeground,
     contrastRatio: contrastRatio,
+    relativeLuminance: relativeLuminance,
     intersectRect: intersectRect,
     moveLayoutEntry: moveLayoutEntry,
     addLayoutEntry: addLayoutEntry,
+    foldLayout: foldLayout,
+    foldedPosition: foldedPosition,
+    moveFoldedEntry: moveFoldedEntry,
+    removeFoldedEntry: removeFoldedEntry,
+    replaceFoldedEntrySettings: replaceFoldedEntrySettings,
+    moveFoldedModule: moveFoldedModule,
     removeLayoutEntry: removeLayoutEntry,
     replaceEntrySettings: replaceEntrySettings,
     isDrawnSlot: isDrawnSlot,
