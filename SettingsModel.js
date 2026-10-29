@@ -4,6 +4,7 @@ var defaults = {
   display: "all",
   reserveSpace: true,
   matchHyprlandGaps: true,
+  dragLocked: true,
   edgeGap: 4,
   outerMargin: 8,
   sectionPadding: 14,
@@ -182,7 +183,7 @@ function normalizeSetting(key, value) {
       return invalid(key + " must be one of: " + enums[key].join(", "))
     return valid(value)
   }
-  if (key === "reserveSpace" || key === "matchHyprlandGaps" || key === "reducedMotion" || key === "motionEnabled")
+  if (key === "reserveSpace" || key === "matchHyprlandGaps" || key === "dragLocked" || key === "reducedMotion" || key === "motionEnabled")
     return typeof value === "boolean" ? valid(value) : invalid(key + " must be a boolean")
   if (key === "display") {
     if (typeof value !== "string" || value.trim() === "" || /[\u0000-\u001f\u007f]/.test(value))

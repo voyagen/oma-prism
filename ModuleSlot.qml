@@ -160,7 +160,7 @@ Item {
     }
 
     onPositionChanged: function(mouse) {
-      if (!canReorder || !(mouse.buttons & Qt.LeftButton)) return
+      if (!canReorder || controller.prismSettings.dragLocked || !(mouse.buttons & Qt.LeftButton)) return
 
       var distance = Math.abs(mouse.x - pressedX) + Math.abs(mouse.y - pressedY)
       if (distance >= dragThreshold) {

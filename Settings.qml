@@ -636,6 +636,8 @@ Ui.Panel {
       Flag { label: "Prevent windows from covering the bar"; settingKey: "reserveSpace" }
       Flag { label: "Match Hyprland gaps"; settingKey: "matchHyprlandGaps"; objectName: "match-hyprland-gaps" }
       Caption { width: parent.width; text: root.effective.matchHyprlandGaps ? "Floating and Islands use Hyprland's outer gaps for the screen-edge gap and side margins, so the bar lines up with windows. Docked stays flush. Spacing presets keep their other values." : "Edge gap and side margins come from the Spacing preset." }
+      Flag { label: "Lock dragging of icons"; settingKey: "dragLocked"; objectName: "drag-locked" }
+      Caption { width: parent.width; text: root.effective.dragLocked ? "Icons and the bar can't be dragged. Unlock to reorder icons or move the bar." : "Dragging is unlocked: drag an icon to reorder it, or press and hold to move the bar." }
       }
       Group {
       Numeric { title:"Roundness"; settingKey:"radius" }

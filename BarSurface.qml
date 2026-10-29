@@ -273,7 +273,7 @@ PanelWindow {
     pressAndHoldInterval: 200
 
     function startDrag(x, y) {
-      if (dragging) return
+      if (dragging || controller.prismSettings.dragLocked) return
       dragging = true
       controller.beginBarMove(controller.targetWindow(gestureArea))
       var scenePoint = gestureArea.mapToItem(null, x, y)
